@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(
-    title="ESP8266 Smart Shrimp Pond API",
-    description="Dedicated Backend API for ESP8266 Microcontroller with 4 Core Sensors (DO, pH, Salinity, Temperature), Oxygen Turbine Automation, and Offline Fail-Safe Watchdog (000 / SYSTEM OFFLINE).",
+    title="ESP32 Smart Shrimp Pond API",
+    description="Dedicated Backend API for ESP32 Microcontroller with 4 Core Sensors (DO, pH, Salinity, Temperature), Dual Turbine Automation (DO Turbine & Water Turbine), and Offline Fail-Safe Watchdog (000 / SYSTEM OFFLINE).",
     version="3.0.0"
 )
 
@@ -29,10 +29,10 @@ SETTINGS_FILE = "data/config.json"
 # Optimal thresholds for shrimp aquaculture (Penaeus vannamei)
 # 4 core sensors
 DEFAULT_SETTINGS = {
-    "dissolvedOxygen": {"min": 4.0, "max": 8.0, "unit": "mg/L", "label": "Dissolved Oxygen", "pin": "ADS1115 (A0)"},
-    "pH": {"min": 7.5, "max": 8.5, "unit": "", "label": "pH Level", "pin": "ADS1115 (A1)"},
-    "salinity": {"min": 10.0, "max": 25.0, "unit": "ppt", "label": "Salinity", "pin": "ADS1115 (A2)"},
-    "temperature": {"min": 26.0, "max": 32.0, "unit": "°C", "label": "Water Temperature", "pin": "DS18B20 (Pin D4)"},
+    "dissolvedOxygen": {"min": 4.0, "max": 8.0, "unit": "mg/L", "label": "Dissolved Oxygen", "pin": "ESP32 (GPIO 34 / Est)"},
+    "pH": {"min": 7.5, "max": 8.5, "unit": "", "label": "pH Level", "pin": "ESP32 (GPIO 34)"},
+    "salinity": {"min": 10.0, "max": 25.0, "unit": "ppt", "label": "Salinity", "pin": "ESP32 (GPIO 35)"},
+    "temperature": {"min": 26.0, "max": 32.0, "unit": "°C", "label": "Water Temperature", "pin": "ESP32 (GPIO 4)"},
     "ammonia": {"min": 0.0, "max": 0.1, "unit": "mg/L", "label": "Ammonia (TAN)", "pin": "Auxiliary"},
     "hardness": {"min": 100.0, "max": 300.0, "unit": "mg/L", "label": "Total Hardness", "pin": "Auxiliary"}
 }
@@ -40,19 +40,17 @@ DEFAULT_SETTINGS = {
 DEFAULT_CONTROL = {
     "oxygenTurbine": "AUTO",
     "oxygenTurbineActive": False,
-    "aerator": "AUTO",
-    "aeratorActive": False,
-    "waterPump": "AUTO",
-    "waterPumpActive": False,
+    "waterTurbine": "AUTO",
+    "waterTurbineActive": False,
     "lastChanged": int(time.time() * 1000)
 }
 
-# ESP8266 Hardware Watchdog State
+# ESP32 / IoT Hardware Watchdog State
 # Timeout: 15 seconds without a telemetry packet marks the system OFFLINE
 WATCHDOG_TIMEOUT_SECONDS = 15.0
 
 hardware_health: Dict[str, Any] = {
-    "microcontroller": "ESP8266",
+    "microcontroller": "ESP32",
     "isOnline": False,
     "lastHeartbeat": 0.0,
     "timeoutSeconds": WATCHDOG_TIMEOUT_SECONDS,
@@ -121,34 +119,62 @@ def save_persisted_data():
     except Exception as e:
         print(f"Notice: Error saving pond data: {e}")
 
-# --- Oxygen Turbine Automation & Hysteresis ---
+# --- Scientific Formula for Estimated Dissolved Oxygen ---
+def calculate_estimated_do(temperature: float, ph: float, salinity: float) -> float:
+    """
+    Scientific formula for Dissolved Oxygen (DO) dependency on Temperature, Salinity, and pH:
+    1. Base saturation at temperature T (°C): 14.60 - (0.28 * T)
+    2. Salinity penalty (salting-out effect): salinity * 0.045
+    3. pH penalty: |pH - 7.85| * 0.55 (deviation from optimal 7.85 reflects ecosystem respiration stress)
+    """
+    effective_temp = temperature if temperature > 0.0 else 28.0
+    base = 14.60 - (0.28 * effective_temp)
+    sal_penalty = salinity * 0.045
+    ph_penalty = abs(ph - 7.85) * 0.55
+    res = base - sal_penalty - ph_penalty
+    return round(max(0.0, min(12.0, res)), 2)
+
+# --- Dual Turbine Automation & Hysteresis ---
 def update_turbine_automation():
-    """Automates Oxygen Turbine based on Dissolved Oxygen and Temperature."""
+    """Automates Dissolved Oxygen Turbine (Servo 1) and Water Circulation Turbine (Servo 2)."""
     control = pond_state.setdefault("control", DEFAULT_CONTROL.copy())
     current = pond_state.get("current", {})
     is_online = check_hardware_online()
 
-    if not is_online:
-        # Failsafe hold when hardware is offline
-        control["oxygenTurbineActive"] = False
-        return
+    do_val = current.get("dissolvedOxygen", 0.0)
+    temp_val = current.get("temperature", 0.0)
+    ph_val = current.get("pH", 7.8)
+    sal_val = current.get("salinity", 18.0)
 
-    mode = control.get("oxygenTurbine", "AUTO")
-    if mode == "ON":
+    # 1. Dissolved Oxygen Turbine (Servo 1 / GPIO 18)
+    do_mode = control.get("oxygenTurbine", "AUTO")
+    if do_mode == "ON":
         control["oxygenTurbineActive"] = True
-    elif mode == "OFF":
+    elif do_mode == "OFF":
         control["oxygenTurbineActive"] = False
-    elif mode == "AUTO":
-        do_val = current.get("dissolvedOxygen", 0.0)
-        temp_val = current.get("temperature", 0.0)
-
-        # Hysteresis Rules:
-        # 1. Turn ON if DO drops below 4.0 mg/L, OR if DO < 4.5 mg/L in warm water (> 31.0°C)
-        if do_val < 4.0 or (do_val < 4.5 and temp_val > 31.0):
+    elif do_mode == "AUTO":
+        if not is_online:
+            # Failsafe hold when hardware is offline in AUTO mode
+            control["oxygenTurbineActive"] = False
+        elif do_val < 4.0 or (do_val < 4.5 and temp_val > 31.0):
             control["oxygenTurbineActive"] = True
-        # 2. Turn OFF when DO safely recovers to >= 5.5 mg/L
         elif do_val >= 5.5:
             control["oxygenTurbineActive"] = False
+
+    # 2. Water Circulation Turbine (Servo 2 / GPIO 19)
+    water_mode = control.get("waterTurbine", "AUTO")
+    if water_mode == "ON":
+        control["waterTurbineActive"] = True
+    elif water_mode == "OFF":
+        control["waterTurbineActive"] = False
+    elif water_mode == "AUTO":
+        if not is_online:
+            # Failsafe hold when hardware is offline in AUTO mode
+            control["waterTurbineActive"] = False
+        elif temp_val > 32.5 or ph_val < 7.2 or ph_val > 8.8 or sal_val > 25.0:
+            control["waterTurbineActive"] = True
+        elif (temp_val < 31.0 or temp_val <= 0.0) and (7.4 <= ph_val <= 8.6) and sal_val <= 22.0:
+            control["waterTurbineActive"] = False
 
 # --- Threshold & Alert Checking ---
 def check_thresholds(reading: Dict[str, Any]):
@@ -216,6 +242,10 @@ def ingest_esp8266_telemetry(
     if client_ip:
         hardware_health["lastPacketIp"] = client_ip
 
+    # If DO is missing or 0, calculate using the scientific formula
+    if dissolvedOxygen <= 0.0:
+        dissolvedOxygen = calculate_estimated_do(temperature, pH, salinity)
+
     # 2. Record 4 Core Sensor Values
     reading = {
         "dissolvedOxygen": round(float(dissolvedOxygen), 2),
@@ -232,27 +262,39 @@ def ingest_esp8266_telemetry(
     if len(pond_state["history"]) > 1000:
         pond_state["history"] = pond_state["history"][-1000:]
 
-    # 3. Check Thresholds & Update Oxygen Turbine Automation
+    # 3. Check Thresholds & Update Turbines Automation
     check_thresholds(reading)
     update_turbine_automation()
     save_persisted_data()
 
-    # 4. Generate Response Payload for ESP8266
-    is_active = pond_state["control"].get("oxygenTurbineActive", False)
-    mode = pond_state["control"].get("oxygenTurbine", "AUTO")
-    
-    # Relay level: 0 = LOW (Relay ON for Active-LOW relay module), 1 = HIGH (Relay OFF)
-    relay_level = 0 if is_active else 1
+    # 4. Generate Response Payload for ESP32 / ESP8266
+    do_active = pond_state["control"].get("oxygenTurbineActive", False)
+    water_active = pond_state["control"].get("waterTurbineActive", False)
+    mode_do = pond_state["control"].get("oxygenTurbine", "AUTO")
+    mode_water = pond_state["control"].get("waterTurbine", "AUTO")
 
     return {
         "status": "success",
-        "message": "Telemetry received from ESP8266",
+        "message": "Telemetry received successfully",
         "timestamp": now_ms,
-        "turbine": "ON" if is_active else "OFF",
-        "turbineActive": is_active,
-        "relayLevel": relay_level,
-        "mode": mode,
         "systemStatus": "ONLINE",
+        "microcontroller": "ESP32",
+        # Turbine 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18)
+        "oxygenTurbine": "ON" if do_active else "OFF",
+        "oxygenTurbineActive": do_active,
+        "servoDO": 90 if do_active else 0,
+        "relayLevelDO": 0 if do_active else 1,
+        "modeDO": mode_do,
+        # Turbine 2: Water Circulation Turbine (Servo 2 / GPIO 19)
+        "waterTurbine": "ON" if water_active else "OFF",
+        "waterTurbineActive": water_active,
+        "servoWater": 90 if water_active else 0,
+        "relayLevelWater": 0 if water_active else 1,
+        "modeWater": mode_water,
+        # Backward-compatibility aliases
+        "turbine": "ON" if do_active else "OFF",
+        "turbineActive": do_active,
+        "relayLevel": 0 if do_active else 1,
         "offlineFailSafe": False
     }
 
@@ -463,7 +505,7 @@ def get_dashboard_sensors():
             "unit": "mg/L",
             "status": get_status(do_val, settings["dissolvedOxygen"]["min"], settings["dissolvedOxygen"]["max"]),
             "safeRange": f"{settings['dissolvedOxygen']['min']} - {settings['dissolvedOxygen']['max']} mg/L",
-            "pin": "ESP8266 -> ADS1115 (A0)",
+            "pin": "ESP32 -> GPIO 34 (Analog / Estimated DO)",
             "isCore": True
         },
         {
@@ -474,7 +516,7 @@ def get_dashboard_sensors():
             "unit": "",
             "status": get_status(ph_val, settings["pH"]["min"], settings["pH"]["max"]),
             "safeRange": f"{settings['pH']['min']} - {settings['pH']['max']}",
-            "pin": "ESP8266 -> ADS1115 (A1)",
+            "pin": "ESP32 -> GPIO 34 (Analog pH)",
             "isCore": True
         },
         {
@@ -485,7 +527,7 @@ def get_dashboard_sensors():
             "unit": "ppt",
             "status": get_status(sal_val, settings["salinity"]["min"], settings["salinity"]["max"]),
             "safeRange": f"{settings['salinity']['min']} - {settings['salinity']['max']} ppt",
-            "pin": "ESP8266 -> ADS1115 (A2)",
+            "pin": "ESP32 -> GPIO 35 (Analog TDS/Salinity)",
             "isCore": True
         },
         {
@@ -496,19 +538,20 @@ def get_dashboard_sensors():
             "unit": "°C",
             "status": get_status(temp_val, settings["temperature"]["min"], settings["temperature"]["max"]),
             "safeRange": f"{settings['temperature']['min']} - {settings['temperature']['max']} °C",
-            "pin": "DS18B20 (Pin D4)",
+            "pin": "ESP32 -> GPIO 4 (DS18B20 OneWire)",
             "isCore": True
         }
     ]
 
-    turbine_active = pond_state["control"].get("oxygenTurbineActive", False) if is_online else False
+    do_active = pond_state["control"].get("oxygenTurbineActive", False) if is_online else False
+    water_active = pond_state["control"].get("waterTurbineActive", False) if is_online else False
 
     return {
         "status": "success",
         "system": "Smart Shrimp Pond IoT Management System",
         "pondId": "POND_01",
-        "microcontroller": "ESP8266",
-        "source": "ESP8266_HARDWARE",
+        "microcontroller": "ESP32",
+        "source": "ESP32_HARDWARE",
         "isOnline": is_online,
         "systemStatus": system_status,
         "timestamp": now_ms,
@@ -538,11 +581,18 @@ def get_dashboard_sensors():
         "sensorList": sensor_list,
         "actuators": {
             "oxygenTurbine": {
-                "name": "Oxygen Venturi Turbine",
-                "mode": pond_state["control"]["oxygenTurbine"],
-                "active": turbine_active,
-                "status": ("RUNNING" if turbine_active else "STANDBY") if is_online else "OFFLINE (HOLD)",
-                "relayPin": "Pin D5 (GPIO 14)"
+                "name": "Dissolved Oxygen Turbine",
+                "mode": pond_state["control"].get("oxygenTurbine", "AUTO"),
+                "active": do_active,
+                "status": ("RUNNING" if do_active else "STANDBY") if is_online else "OFFLINE (HOLD)",
+                "relayPin": "ESP32 -> GPIO 18 (Servo 1)"
+            },
+            "waterTurbine": {
+                "name": "Water Circulation Turbine",
+                "mode": pond_state["control"].get("waterTurbine", "AUTO"),
+                "active": water_active,
+                "status": ("RUNNING" if water_active else "STANDBY") if is_online else "OFFLINE (HOLD)",
+                "relayPin": "ESP32 -> GPIO 19 (Servo 2)"
             }
         },
         "summary": {
@@ -574,10 +624,10 @@ def get_all_pond_data():
         "control": pond_state["control"],
         "settings": pond_state["settings"],
         "alerts": pond_state["alerts"][:50],
-        "dataSource": "ESP8266_HARDWARE",
+        "dataSource": "ESP32_HARDWARE",
         "isStale": not is_online,
         "ageSeconds": age_sec,
-        "microcontroller": "ESP8266"
+        "microcontroller": "ESP32"
     }
 
 @app.post("/api/hardware/toggle-offline", summary="Toggle hardware offline mode for viva/demo testing")
@@ -602,6 +652,62 @@ def toggle_hardware_offline(force_offline: Optional[bool] = None):
         "message": "Hardware disconnected. Values set to 000 (SYSTEM OFFLINE)." if not is_online else "Hardware reconnected. Live telemetry active."
     }
 
+@app.post("/api/pond/control", summary="Direct Pond Actuator Controls (AUTO, ON, OFF)")
+async def update_pond_actuator_control(request: Request):
+    """
+    Accepts turbine mode updates from UI:
+    e.g. {"oxygenTurbine": "ON"}, {"waterTurbine": "OFF"}, {"device": "oxygenTurbine", "mode": "AUTO"}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON body"})
+
+    device = body.get("device")
+    mode = body.get("mode")
+    if device and mode:
+        body[device] = mode
+
+    # Legacy mapping
+    if "aerator" in body:
+        body["oxygenTurbine"] = body["aerator"]
+    if "waterPump" in body:
+        body["waterTurbine"] = body["waterPump"]
+    if "pump" in body:
+        body["waterTurbine"] = body["pump"]
+    if "turbine" in body:
+        body["oxygenTurbine"] = body["turbine"]
+
+    now_ms = int(time.time() * 1000)
+    if "oxygenTurbine" in body:
+        val = str(body["oxygenTurbine"]).upper()
+        if val in ["AUTO", "ON", "OFF"]:
+            pond_state["control"]["oxygenTurbine"] = val
+            pond_state["control"]["lastChanged"] = now_ms
+
+    if "waterTurbine" in body:
+        val = str(body["waterTurbine"]).upper()
+        if val in ["AUTO", "ON", "OFF"]:
+            pond_state["control"]["waterTurbine"] = val
+            pond_state["control"]["lastChanged"] = now_ms
+
+    update_turbine_automation()
+    save_persisted_data()
+
+    do_active = pond_state["control"].get("oxygenTurbineActive", False)
+    water_active = pond_state["control"].get("waterTurbineActive", False)
+
+    return {
+        "status": "success",
+        "control": pond_state["control"],
+        "oxygenTurbine": pond_state["control"].get("oxygenTurbine", "AUTO"),
+        "oxygenTurbineActive": do_active,
+        "servoDO": 90 if do_active else 0,
+        "waterTurbine": pond_state["control"].get("waterTurbine", "AUTO"),
+        "waterTurbineActive": water_active,
+        "servoWater": 90 if water_active else 0
+    }
+
 class TurbineControlRequest(BaseModel):
     mode: str  # "AUTO" | "ON" | "OFF"
 
@@ -611,16 +717,33 @@ def control_oxygen_turbine(req: TurbineControlRequest):
     mode = req.mode.upper()
     if mode not in ["AUTO", "ON", "OFF"]:
         return JSONResponse(status_code=400, content={"error": "Invalid mode. Use AUTO, ON, or OFF."})
-    
+
     pond_state["control"]["oxygenTurbine"] = mode
     pond_state["control"]["lastChanged"] = int(time.time() * 1000)
     update_turbine_automation()
     save_persisted_data()
-    
+
     return {
         "status": "success",
         "oxygenTurbine": mode,
-        "turbineActive": pond_state["control"]["oxygenTurbineActive"]
+        "turbineActive": pond_state["control"]["oxygenTurbineActive"],
+        "servoDO": 90 if pond_state["control"]["oxygenTurbineActive"] else 0
+    }
+
+@app.get("/api/esp32/actuators", summary="Direct ESP32 Actuator State Query")
+@app.get("/api/esp8266/actuators", summary="Direct ESP Actuator State Query")
+def get_esp32_actuators():
+    update_turbine_automation()
+    do_active = pond_state["control"].get("oxygenTurbineActive", False)
+    water_active = pond_state["control"].get("waterTurbineActive", False)
+    return {
+        "status": "success",
+        "oxygenTurbineActive": do_active,
+        "waterTurbineActive": water_active,
+        "servoDO": 90 if do_active else 0,
+        "servoWater": 90 if water_active else 0,
+        "oxygenTurbine": pond_state["control"].get("oxygenTurbine", "AUTO"),
+        "waterTurbine": pond_state["control"].get("waterTurbine", "AUTO")
     }
 
 @app.get("/api/pond/history", summary="Telemetry History for Trends Graph")

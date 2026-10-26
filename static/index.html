@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Shrimp Farming IoT Dashboard (ESP8266 + 4 Sensors + Oxygen Turbine) | AquaSmart</title>
-  <meta name="description" content="Real-time IoT water quality monitoring dashboard for smart shrimp aquaculture ponds with ESP8266, 4 core sensors (DO, pH, Salinity, Temp), Oxygen Turbine automation, and hardware offline fail-safe.">
+  <title>Smart Shrimp Farming IoT Dashboard (ESP32 + 4 Sensors + Dual Turbines) | AquaSmart</title>
+  <meta name="description" content="Real-time IoT water quality monitoring dashboard for smart shrimp aquaculture ponds with ESP32, 4 core sensors (DO, pH, Salinity, Temp), Dissolved Oxygen & Water Circulation Turbines automation, and hardware offline fail-safe.">
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -52,7 +52,7 @@
   <!-- HARDWARE OFFLINE WARNING BANNER -->
   <div id="stale-banner" class="hidden bg-rose-600/95 text-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-center border-b border-rose-400/40 flex items-center justify-center gap-3 transition-all duration-300 z-50 sticky top-0 shadow-xl backdrop-blur-md">
     <i data-lucide="alert-octagon" class="w-5 h-5 text-white animate-bounce shrink-0"></i>
-    <span id="stale-banner-text"><strong>⚠️ ESP8266 SYSTEM OFFLINE:</strong> Telemetry ping disconnected! All 4 sensor readings are zeroed out (000) and Oxygen Turbines are held in safe mode.</span>
+    <span id="stale-banner-text"><strong>⚠️ ESP32 SYSTEM OFFLINE:</strong> Telemetry ping disconnected! All 4 sensor readings are zeroed out (000) and Turbines are held in safe mode.</span>
     <button onclick="toggleHardwareOffline(false)" class="ml-2 px-2.5 py-0.5 rounded bg-white text-rose-700 text-xs font-bold hover:bg-rose-100 transition-all shadow-sm">Reconnect Telemetry</button>
     <button onclick="dismissStaleBanner()" class="ml-2 underline text-xs text-rose-200 hover:text-white">Dismiss</button>
   </div>
@@ -107,39 +107,33 @@
         </button>
       </nav>
 
-      <!-- Sidebar Quick Actuator Status Card -->
+      <!-- Sidebar Quick Turbine Status Card -->
       <div class="mt-4 p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 text-xs">
         <div class="flex items-center justify-between mb-2">
-          <span class="font-semibold text-slate-300 uppercase tracking-wider text-[10px]">Actuator States</span>
-          <span class="text-[10px] text-cyan-400 font-mono">ESP8266 Relays</span>
+          <span class="font-semibold text-slate-300 uppercase tracking-wider text-[10px]">Turbine Actuators</span>
+          <span class="text-[10px] text-cyan-400 font-mono">ESP32 Actuators</span>
         </div>
         <div class="space-y-1.5">
           <div class="flex items-center justify-between py-1 border-b border-slate-800/50">
             <span class="text-slate-400 flex items-center gap-1.5">
-              <i data-lucide="fan" class="w-3 h-3 text-cyan-400"></i> Aerator
-            </span>
-            <span id="sidebar-aerator-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
-          </div>
-          <div class="flex items-center justify-between py-1 border-b border-slate-800/50">
-            <span class="text-slate-400 flex items-center gap-1.5">
-              <i data-lucide="wind" class="w-3 h-3 text-emerald-400"></i> Turbine
+              <i data-lucide="wind" class="w-3 h-3 text-cyan-400"></i> DO Turbine (T1)
             </span>
             <span id="sidebar-turbine-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
           </div>
           <div class="flex items-center justify-between py-1">
             <span class="text-slate-400 flex items-center gap-1.5">
-              <i data-lucide="droplets" class="w-3 h-3 text-blue-400"></i> Water Pump
+              <i data-lucide="waves" class="w-3 h-3 text-emerald-400"></i> Water Turbine (T2)
             </span>
-            <span id="sidebar-pump-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
+            <span id="sidebar-water-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
           </div>
         </div>
       </div>
 
-      <!-- ESP8266 Hardware Status -->
+      <!-- ESP32 Hardware Status -->
       <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
         <div class="flex items-center gap-2">
           <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i>
-          <span>ESP8266 Node</span>
+          <span>ESP32 Node</span>
         </div>
         <span id="esp-status-text" class="font-mono text-emerald-400 text-[11px]">Synced</span>
       </div>
@@ -250,20 +244,15 @@
 
           <!-- Actuator Quick Summary -->
           <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
-            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-cyan-500/40 transition-all" onclick="setActuatorMode('aerator', appState.control.aerator === 'ON' ? 'OFF' : 'ON')">
-              <span class="w-2 h-2 rounded-full bg-cyan-400" id="quick-dot-aerator"></span>
-              <span class="text-slate-400">Aerator:</span>
-              <span class="font-bold text-white font-mono" id="quick-val-aerator">AUTO</span>
-            </div>
-            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-emerald-500/40 transition-all" onclick="setActuatorMode('oxygenTurbine', appState.control.oxygenTurbine === 'ON' ? 'OFF' : 'ON')">
-              <span class="w-2 h-2 rounded-full bg-emerald-400" id="quick-dot-turbine"></span>
-              <span class="text-slate-400">Turbine:</span>
+            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-cyan-500/40 transition-all" onclick="setActuatorMode('oxygenTurbine', appState.control.oxygenTurbine === 'ON' ? 'OFF' : 'ON')" title="Toggle DO Turbine (Servo 1 / GPIO 18)">
+              <span class="w-2 h-2 rounded-full bg-cyan-400" id="quick-dot-turbine"></span>
+              <span class="text-slate-400">DO Turbine:</span>
               <span class="font-bold text-white font-mono" id="quick-val-turbine">AUTO</span>
             </div>
-            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-blue-500/40 transition-all" onclick="setActuatorMode('waterPump', appState.control.waterPump === 'ON' ? 'OFF' : 'ON')">
-              <span class="w-2 h-2 rounded-full bg-blue-400" id="quick-dot-pump"></span>
-              <span class="text-slate-400">Pump:</span>
-              <span class="font-bold text-white font-mono" id="quick-val-pump">AUTO</span>
+            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-emerald-500/40 transition-all" onclick="setActuatorMode('waterTurbine', appState.control.waterTurbine === 'ON' ? 'OFF' : 'ON')" title="Toggle Water Turbine (Servo 2 / GPIO 19)">
+              <span class="w-2 h-2 rounded-full bg-emerald-400" id="quick-dot-water"></span>
+              <span class="text-slate-400">Water Turbine:</span>
+              <span class="font-bold text-white font-mono" id="quick-val-water">AUTO</span>
             </div>
             <button onclick="switchTab('control')" class="px-3 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-semibold transition-all border border-cyan-500/30 flex items-center gap-1.5">
               <span>Control Panel</span>
@@ -284,30 +273,19 @@
                 <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
                 Pond #1 Physical Cross-Section
               </span>
-              <span class="text-[10px] text-slate-300 font-sans hidden sm:inline bg-slate-900/60 px-2 py-0.5 rounded">Click equipment to toggle</span>
+              <span class="text-[10px] text-slate-300 font-sans hidden sm:inline bg-slate-900/60 px-2 py-0.5 rounded">Click turbines to toggle</span>
             </div>
 
-            <!-- Inflow Water Pump Visual -->
-            <div class="flex items-center gap-2 cursor-pointer bg-slate-950/75 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-blue-500/50 transition-all" onclick="setActuatorMode('waterPump', appState.control.waterPump === 'ON' ? 'OFF' : 'ON')" title="Toggle Inflow Pump">
+            <!-- Water Circulation Turbine (T2 / GPIO 19) Visual -->
+            <div class="flex items-center gap-2 cursor-pointer bg-slate-950/75 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-blue-500/50 transition-all" onclick="setActuatorMode('waterTurbine', appState.control.waterTurbine === 'ON' ? 'OFF' : 'ON')" title="Toggle Water Circulation Turbine (GPIO 19)">
               <div id="sim-pump-wheel" class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 border border-blue-500/30">
-                <i data-lucide="droplets" class="w-3.5 h-3.5"></i>
+                <i data-lucide="waves" class="w-3.5 h-3.5"></i>
               </div>
               <div class="text-[11px]">
-                <span class="text-slate-400 block text-[9px] leading-tight">INFLOW PUMP</span>
+                <span class="text-slate-400 block text-[9px] leading-tight font-mono">WATER TURBINE (T2)</span>
                 <span id="sim-pump-label" class="font-bold text-white font-mono text-[10px]">AUTO</span>
               </div>
             </div>
-          </div>
-
-          <!-- Surface Paddlewheel Aerator Visual (floating on water surface) -->
-          <div class="absolute top-2 left-1/4 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center" onclick="setActuatorMode('aerator', appState.control.aerator === 'ON' ? 'OFF' : 'ON')" title="Click to toggle Aerator">
-            <div class="bg-slate-950/80 px-2 py-0.5 rounded text-[9px] font-mono text-cyan-300 border border-cyan-500/30 mb-1">
-              SURFACE AERATOR: <span id="sim-aerator-text">AUTO</span>
-            </div>
-            <div id="sim-aerator-paddle" class="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-600 to-cyan-400 flex items-center justify-center text-slate-950 shadow-lg shadow-cyan-500/40">
-              <i data-lucide="fan" class="w-5 h-5"></i>
-            </div>
-            <div id="sim-aerator-splash" class="hidden text-cyan-300 text-xs animate-bounce mt-0.5">💦 💦</div>
           </div>
 
           <!-- Ambient Water Shimmer Layer -->
@@ -316,15 +294,15 @@
           <!-- Oxygen Micro-Bubbles Container (Active when Turbine is running) -->
           <div id="sim-bubbles-container" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
 
-          <!-- Pond Floor & Deep Oxygen Venturi Turbine Visual -->
+          <!-- Pond Floor & Deep Dissolved Oxygen Venturi Turbine Visual -->
           <div class="relative z-10 flex items-end justify-between pt-4 border-t border-slate-700/30">
-            <!-- Deep Venturi Turbine -->
-            <div class="flex items-center gap-2 cursor-pointer bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-emerald-500/50 transition-all" onclick="setActuatorMode('oxygenTurbine', appState.control.oxygenTurbine === 'ON' ? 'OFF' : 'ON')" title="Toggle Oxygen Turbine">
+            <!-- Deep DO Turbine (T1 / GPIO 18) -->
+            <div class="flex items-center gap-2 cursor-pointer bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-emerald-500/50 transition-all" onclick="setActuatorMode('oxygenTurbine', appState.control.oxygenTurbine === 'ON' ? 'OFF' : 'ON')" title="Toggle Dissolved Oxygen Turbine (GPIO 18)">
               <div id="sim-turbine-wheel" class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30">
                 <i data-lucide="wind" class="w-3.5 h-3.5"></i>
               </div>
               <div class="text-[11px]">
-                <span class="text-slate-400 block text-[9px] leading-tight">DEEP TURBINE</span>
+                <span class="text-slate-400 block text-[9px] leading-tight font-mono">DO TURBINE (T1)</span>
                 <span id="sim-turbine-label" class="font-bold text-white font-mono text-[10px]">AUTO</span>
               </div>
             </div>
@@ -344,7 +322,7 @@
             </div>
         </div>
 
-        <!-- OXYGEN TURBINE AUTOMATION & ESP8266 SYSTEM SPOTLIGHT -->
+        <!-- DISSOLVED OXYGEN TURBINE AUTOMATION & ESP32 SYSTEM SPOTLIGHT -->
         <div class="glass-card rounded-2xl p-5 border border-cyan-500/30 bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-cyan-950/20 shadow-xl space-y-4">
           <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
@@ -353,11 +331,11 @@
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-base font-bold text-white tracking-tight">Oxygen Turbine Automation System</h3>
+                  <h3 class="text-base font-bold text-white tracking-tight">Dissolved Oxygen Turbine Automation System</h3>
                   <span id="turbine-live-badge" class="badge-normal text-[10px] font-bold px-2 py-0.5 rounded-full">AUTO (STANDBY)</span>
                 </div>
                 <p class="text-xs text-slate-300 mt-0.5">
-                  Microcontroller: <strong class="text-cyan-300 font-mono">ESP8266 NodeMCU</strong> | Relay Pin: <strong class="text-emerald-400 font-mono">Pin D5 (GPIO 14)</strong>
+                  Microcontroller: <strong class="text-cyan-300 font-mono">ESP32 DevKit</strong> | Actuator: <strong class="text-emerald-400 font-mono">GPIO 18 (Turbine 1)</strong> & <strong class="text-cyan-300 font-mono">GPIO 19 (Turbine 2)</strong>
                 </p>
               </div>
             </div>
@@ -384,8 +362,10 @@
           <div class="flex items-center justify-between mb-3 px-1">
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 font-mono">4 Core Hardware Sensors</span>
-              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">ESP8266 Live Telemetry</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">ESP32 Live Telemetry</span>
             </div>
+            <span class="text-[11px] text-slate-400 font-mono hidden sm:inline">Offline Fail-Safe: Auto '000' Display</span>
+          </div>
             <span class="text-[11px] text-slate-400 font-mono hidden sm:inline">Offline Fail-Safe: Auto '000' Display</span>
           </div>
 
@@ -735,56 +715,20 @@
           </div>
         </div>
 
-        <!-- Actuators Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Turbines Actuators Grid (Turbine 1: Dissolved Oxygen, Turbine 2: Water Circulation) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          <!-- ACTUATOR 1: AERATOR -->
-          <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between" id="control-card-aerator">
+          <!-- TURBINE 1: DISSOLVED OXYGEN TURBINE -->
+          <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between" id="control-card-turbine">
             <div>
               <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                  <div id="icon-container-aerator" class="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
-                    <i data-lucide="fan" id="icon-aerator" class="w-6 h-6"></i>
-                  </div>
-                  <div>
-                    <h3 class="text-base font-bold text-white">Surface Aerator</h3>
-                    <span class="text-xs text-slate-400 font-mono">Relay Pin: GPIO 25</span>
-                  </div>
-                </div>
-                <span id="badge-actuator-aerator" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  OFF
-                </span>
-              </div>
-
-              <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-                Paddlewheel aerator that breaks surface tension, introducing atmospheric oxygen and breaking thermal stratification.
-              </p>
-            </div>
-
-            <div class="space-y-3">
-              <label class="text-[11px] text-slate-400 uppercase tracking-wider block">Mode Selection</label>
-              <div class="grid grid-cols-3 gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
-                <button onclick="setActuatorMode('aerator', 'AUTO')" id="btn-aerator-auto" class="py-2 rounded-lg text-xs font-semibold transition-all">AUTO</button>
-                <button onclick="setActuatorMode('aerator', 'ON')" id="btn-aerator-on" class="py-2 rounded-lg text-xs font-semibold transition-all">ON</button>
-                <button onclick="setActuatorMode('aerator', 'OFF')" id="btn-aerator-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
-              </div>
-              <div class="text-[11px] text-slate-500 font-mono flex items-center justify-between pt-2">
-                <span>Rule: Auto ON when DO &lt; 4.0 mg/L</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- ACTUATOR 2: OXYGEN TURBINE -->
-          <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between" id="control-card-turbine">
-            <div>
-              <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-3">
-                  <div id="icon-container-turbine" class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                  <div id="icon-container-turbine" class="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
                     <i data-lucide="wind" id="icon-turbine" class="w-6 h-6"></i>
                   </div>
                   <div>
-                    <h3 class="text-base font-bold text-white">Oxygen Turbine</h3>
-                    <span class="text-xs text-slate-400 font-mono">Relay Pin: GPIO 26</span>
+                    <h3 class="text-base font-bold text-white">Dissolved Oxygen Turbine</h3>
+                    <span class="text-xs text-slate-400 font-mono">Microcontroller Pin: ESP32 GPIO 18 (Turbine 1)</span>
                   </div>
                 </div>
                 <span id="badge-actuator-turbine" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
@@ -793,7 +737,7 @@
               </div>
 
               <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-                Deep-water venturi injector turbine that infuses micro-bubbles directly into benthic pond zones where shrimp forage.
+                Primary aeration turbine injecting microscopic oxygen bubbles and creating convection currents. Automatically activates when DO levels drop below critical thresholds (DO &lt; 4.0 mg/L).
               </p>
             </div>
 
@@ -805,43 +749,43 @@
                 <button onclick="setActuatorMode('oxygenTurbine', 'OFF')" id="btn-turbine-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
               </div>
               <div class="text-[11px] text-slate-500 font-mono flex items-center justify-between pt-2">
-                <span>Rule: Auto ON when DO &lt; 3.8 mg/L</span>
+                <span>Rule: Auto ON when DO &lt; 4.0 mg/L | Off &ge; 5.5 mg/L</span>
               </div>
             </div>
           </div>
 
-          <!-- ACTUATOR 3: WATER PUMP -->
-          <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between" id="control-card-pump">
+          <!-- TURBINE 2: WATER CIRCULATION TURBINE -->
+          <div class="glass-card rounded-2xl p-6 border border-slate-800 flex flex-col justify-between" id="control-card-water">
             <div>
               <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                  <div id="icon-container-pump" class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20">
-                    <i data-lucide="droplets" id="icon-pump" class="w-6 h-6"></i>
+                  <div id="icon-container-water" class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                    <i data-lucide="waves" id="icon-water" class="w-6 h-6"></i>
                   </div>
                   <div>
-                    <h3 class="text-base font-bold text-white">Water Pump</h3>
-                    <span class="text-xs text-slate-400 font-mono">Relay Pin: GPIO 27</span>
+                    <h3 class="text-base font-bold text-white">Water Circulation Turbine</h3>
+                    <span class="text-xs text-slate-400 font-mono">Microcontroller Pin: ESP32 GPIO 19 (Turbine 2)</span>
                   </div>
                 </div>
-                <span id="badge-actuator-pump" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <span id="badge-actuator-water" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
                   OFF
                 </span>
               </div>
 
               <p class="text-xs text-slate-400 mb-5 leading-relaxed">
-                Inflow water pump for clean water flushing, water volume exchange, and lowering elevated toxic ammonia and heat.
+                Hydrodynamic water circulation turbine ensuring uniform temperature and salinity gradient. Automatically triggers during elevated thermal events (&gt; 32.5°C) or water quality stress.
               </p>
             </div>
 
             <div class="space-y-3">
               <label class="text-[11px] text-slate-400 uppercase tracking-wider block">Mode Selection</label>
               <div class="grid grid-cols-3 gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
-                <button onclick="setActuatorMode('waterPump', 'AUTO')" id="btn-pump-auto" class="py-2 rounded-lg text-xs font-semibold transition-all">AUTO</button>
-                <button onclick="setActuatorMode('waterPump', 'ON')" id="btn-pump-on" class="py-2 rounded-lg text-xs font-semibold transition-all">ON</button>
-                <button onclick="setActuatorMode('waterPump', 'OFF')" id="btn-pump-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
+                <button onclick="setActuatorMode('waterTurbine', 'AUTO')" id="btn-water-auto" class="py-2 rounded-lg text-xs font-semibold transition-all">AUTO</button>
+                <button onclick="setActuatorMode('waterTurbine', 'ON')" id="btn-water-on" class="py-2 rounded-lg text-xs font-semibold transition-all">ON</button>
+                <button onclick="setActuatorMode('waterTurbine', 'OFF')" id="btn-water-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
               </div>
               <div class="text-[11px] text-slate-500 font-mono flex items-center justify-between pt-2">
-                <span>Rule: Auto ON if Ammonia &gt; 0.1 or Temp &gt; 32°C</span>
+                <span>Rule: Auto ON if Temp &gt; 32.5°C or pH stress</span>
               </div>
             </div>
           </div>

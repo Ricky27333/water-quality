@@ -28,13 +28,13 @@ const char* API_ENDPOINT = "http://192.168.29.30:8000/api/esp32/telemetry";
 // TDS / Salinity sensor analog output
 #define TDS_PIN 35
 
-// Temperature sensor DATA
+// Temperature sensor DATA (DS18B20 OneWire)
 #define TEMP_PIN 4
 
-// Servo 1 = DO / Oxygen
+// Turbine 1: Dissolved Oxygen Turbine (Actuator 1 / Servo 1)
 #define SERVO_DO_PIN 18
 
-// Servo 2 = High Temperature
+// Turbine 2: Water Circulation Turbine (Actuator 2 / Servo 2)
 #define SERVO_HEAT_PIN 19
 
 // =====================================================
@@ -201,34 +201,40 @@ void setup()
 
 void loop()
 {
-  // Read all sensors
+  // 1. Auto-reconnect WiFi if connection drops
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println("WiFi connection lost. Attempting auto-reconnect...");
+    WiFi.reconnect();
+  }
+
+  // 2. Read physical sensors
   readTemperature();
-
   readPH();
-
   readTDS();
 
-  // Calculate estimated DO
+  // 3. Calculate estimated DO using scientific formula
   calculateEstimatedDO();
 
-  // Control Servo 1
-  controlDOServo();
-
-  // Control Servo 2
-  controlTemperatureServo();
-
-  // Display values
+  // 4. Display telemetry data to Serial Monitor
   printSensorData();
 
-  // Send data to API
-  sendDataToAPI();
+  // 5. Send data to API & apply remote turbine controls received from Web Dashboard
+  bool apiSuccess = sendDataToAPI();
 
-  // Wait 5 seconds
+  // 6. Fail-safe autonomous hold: if server is unreachable, use local safety rules
+  if (!apiSuccess)
+  {
+    controlDOServo();
+    controlTemperatureServo();
+  }
+
+  // Wait 5 seconds before next cycle
   delay(5000);
 }
 
 // =====================================================
-// TEMPERATURE
+// TEMPERATURE SENSOR (DS18B20)
 // =====================================================
 
 void readTemperature()
@@ -237,11 +243,10 @@ void readTemperature()
 
   float value = temperatureSensor.getTempCByIndex(0);
 
-  if (value == DEVICE_DISCONNECTED_C)
+  if (value == DEVICE_DISCONNECTED_C || value <= -100.0)
   {
-    Serial.println("ERROR: Temperature sensor disconnected!");
-
-    temperatureC = 0;
+    Serial.println("WARNING: Temperature sensor disconnected! Using 28.0 C fallback for DO formula.");
+    temperatureC = 0.0;
   }
   else
   {
@@ -335,140 +340,97 @@ void readTDS()
 }
 
 // =====================================================
-// ESTIMATED DO
+// SCIENTIFIC ESTIMATED DISSOLVED OXYGEN (DO) FORMULA
 // =====================================================
 //
-// There is NO physical DO sensor.
-//
-// This value is estimated using:
-// - Temperature
-// - pH
-// - Salinity
-//
-// It is NOT actual measured dissolved oxygen.
+// Calculates Dissolved Oxygen (mg/L) based on:
+// 1. Temperature: Henry's Law base saturation (14.60 - 0.28 * T)
+// 2. Salinity: Salting-out effect (salinity * 0.045)
+// 3. pH: Biochemical respiration deviation (|pH - 7.85| * 0.55)
 // =====================================================
 
 void calculateEstimatedDO()
 {
-  // Start with nominal DO
-  estimatedDO = 8.0;
+  // Effective temperature (use 28.0 C fallback if sensor disconnected or reading 0)
+  float effectiveTemp = (temperatureC > 0.0) ? temperatureC : 28.0;
 
-  // ---------------------------------------------------
-  // TEMPERATURE EFFECT
-  // ---------------------------------------------------
+  // 1. Base oxygen saturation at effective temperature
+  float baseDO = 14.60 - (0.28 * effectiveTemp);
 
-  if (temperatureC > 31.0)
+  // 2. Salinity penalty (salting-out effect)
+  float salPenalty = salinityValue * 0.045;
+
+  // 3. pH deviation penalty (|pH - 7.85| * 0.55): optimal pond center is 7.85
+  float phPenalty = fabs(phValue - 7.85) * 0.55;
+
+  // Final Estimated DO
+  estimatedDO = baseDO - salPenalty - phPenalty;
+
+  // Bound within realistic aquaculture limits (0.00 - 12.00 mg/L)
+  if (estimatedDO < 0.0)
   {
-    estimatedDO =
-        estimatedDO -
-        ((temperatureC - 31.0) * 0.30);
+    estimatedDO = 0.0;
   }
-
-  // ---------------------------------------------------
-  // SALINITY EFFECT
-  // ---------------------------------------------------
-
-  if (salinityValue > 20.0)
+  if (estimatedDO > 12.0)
   {
-    estimatedDO =
-        estimatedDO -
-        ((salinityValue - 20.0) * 0.03);
-  }
-
-  // ---------------------------------------------------
-  // pH EFFECT
-  // ---------------------------------------------------
-
-  if (phValue < 7.5 || phValue > 8.8)
-  {
-    estimatedDO =
-        estimatedDO - 0.5;
-  }
-
-  // Limit
-  if (estimatedDO < 0)
-  {
-    estimatedDO = 0;
-  }
-
-  if (estimatedDO > 10)
-  {
-    estimatedDO = 10;
+    estimatedDO = 12.0;
   }
 }
 
 // =====================================================
-// SERVO 1
-// DO / OXYGEN ACTION
+// TURBINE 1 (SERVO 1 / GPIO 18)
+// DISSOLVED OXYGEN TURBINE AUTONOMOUS FAIL-SAFE
 // =====================================================
 
 void controlDOServo()
 {
-  // LOW ESTIMATED DO
+  // LOW ESTIMATED DO -> ACTIVATE TURBINE 1
   if (estimatedDO < DO_WARNING)
   {
     if (!servoDOState)
     {
       servoDO.write(SERVO_DO_ON);
-
       servoDOState = true;
-
-      Serial.println(
-        "SERVO 1 -> ON (LOW DO)"
-      );
+      Serial.println("TURBINE 1 [Dissolved Oxygen] -> ON (Local Safety: Low DO)");
     }
   }
-
-  // DO RECOVERED
-  else if (estimatedDO > 3.5)
+  // DO RECOVERED -> STANDBY
+  else if (estimatedDO > 4.5)
   {
     if (servoDOState)
     {
       servoDO.write(SERVO_DO_OFF);
-
       servoDOState = false;
-
-      Serial.println(
-        "SERVO 1 -> OFF (DO RECOVERED)"
-      );
+      Serial.println("TURBINE 1 [Dissolved Oxygen] -> OFF (Local Safety: DO Normal)");
     }
   }
 }
 
 // =====================================================
-// SERVO 2
-// HIGH TEMPERATURE ACTION
+// TURBINE 2 (SERVO 2 / GPIO 19)
+// WATER CIRCULATION TURBINE AUTONOMOUS FAIL-SAFE
 // =====================================================
 
 void controlTemperatureServo()
 {
-  // HIGH TEMPERATURE
-  if (temperatureC > TEMP_HEAT_ON)
+  // HIGH TEMPERATURE OR STRESSED WATER -> ACTIVATE TURBINE 2
+  if (temperatureC > TEMP_HEAT_ON || phValue < 7.2 || phValue > 8.8 || salinityValue > 25.0)
   {
     if (!servoHeatState)
     {
       servoHeat.write(SERVO_HEAT_ON);
-
       servoHeatState = true;
-
-      Serial.println(
-        "SERVO 2 -> ON (HIGH TEMPERATURE)"
-      );
+      Serial.println("TURBINE 2 [Water Circulation] -> ON (Local Safety: Heat/Water Stress)");
     }
   }
-
-  // TEMPERATURE RECOVERED
-  else if (temperatureC < TEMP_HEAT_OFF)
+  // PARAMETERS NORMALIZED -> STANDBY
+  else if ((temperatureC < TEMP_HEAT_OFF || temperatureC <= 0.0) && (phValue >= 7.5 && phValue <= 8.5) && salinityValue <= 22.0)
   {
     if (servoHeatState)
     {
       servoHeat.write(SERVO_HEAT_OFF);
-
       servoHeatState = false;
-
-      Serial.println(
-        "SERVO 2 -> OFF (TEMPERATURE NORMAL)"
-      );
+      Serial.println("TURBINE 2 [Water Circulation] -> OFF (Local Safety: Water Normal)");
     }
   }
 }
@@ -551,12 +513,12 @@ void printSensorData()
   Serial.print("Status      : ");
   Serial.println(getWaterQualityStatus());
 
-  Serial.print("Servo 1 DO  : ");
+  Serial.print("Turbine 1 (DO)   : ");
   Serial.println(
     servoDOState ? "ON" : "OFF"
   );
 
-  Serial.print("Servo 2 Heat: ");
+  Serial.print("Turbine 2 (Water): ");
   Serial.println(
     servoHeatState ? "ON" : "OFF"
   );
@@ -565,19 +527,16 @@ void printSensorData()
 }
 
 // =====================================================
-// SEND DATA TO API
+// SEND DATA TO API & RECEIVE REMOTE TURBINE COMMANDS
 // =====================================================
 
-void sendDataToAPI()
+bool sendDataToAPI()
 {
   // Check WiFi
   if (WiFi.status() != WL_CONNECTED)
   {
-    Serial.println(
-      "WiFi disconnected - API not sent"
-    );
-
-    return;
+    Serial.println("WiFi disconnected - API packet skipped.");
+    return false;
   }
 
   HTTPClient http;
@@ -594,35 +553,14 @@ void sendDataToAPI()
   // ---------------------------------------------------
 
   String json = "{";
-
-  json += "\"temperature\":";
-  json += String(temperatureC, 2);
-
-  json += ",\"ph\":";
-  json += String(phValue, 2);
-
-  json += ",\"tds\":";
-  json += String(tdsValue, 2);
-
-  json += ",\"salinity\":";
-  json += String(salinityValue, 2);
-
-  // CHANGED "estimated_do" to "do" so that app.py recognizes the oxygen parameter!
-  json += ",\"do\":";
-  json += String(estimatedDO, 2);
-
-  json += ",\"water_quality\":\"";
-  json += getWaterQualityStatus();
-  json += "\"";
-
-  json += ",\"servo_do\":";
-  json +=
-    servoDOState ? "true" : "false";
-
-  json += ",\"servo_heat\":";
-  json +=
-    servoHeatState ? "true" : "false";
-
+  json += "\"temperature\":" + String(temperatureC, 2);
+  json += ",\"ph\":" + String(phValue, 2);
+  json += ",\"tds\":" + String(tdsValue, 2);
+  json += ",\"salinity\":" + String(salinityValue, 2);
+  json += ",\"do\":" + String(estimatedDO, 2);
+  json += ",\"water_quality\":\"" + getWaterQualityStatus() + "\"";
+  json += ",\"oxygenTurbineActive\":" + String(servoDOState ? "true" : "false");
+  json += ",\"waterTurbineActive\":" + String(servoHeatState ? "true" : "false");
   json += "}";
 
   // ---------------------------------------------------
@@ -630,32 +568,78 @@ void sendDataToAPI()
   // ---------------------------------------------------
 
   Serial.println();
-  Serial.println("Sending JSON:");
+  Serial.println("Sending Telemetry to API:");
   Serial.println(json);
 
   // ---------------------------------------------------
-  // POST
+  // POST TELEMETRY & RECEIVE REMOTE TURBINE ACTIONS
   // ---------------------------------------------------
 
-  int responseCode =
-      http.POST(json);
+  int responseCode = http.POST(json);
 
-  Serial.print(
-    "API Response Code: "
-  );
-
+  Serial.print("API Response Code: ");
   Serial.println(responseCode);
 
   if (responseCode > 0)
   {
-    String response =
-        http.getString();
+    String response = http.getString();
 
-    Serial.println(
-      "API Response:"
-    );
-
+    Serial.println("API Response Body:");
     Serial.println(response);
+
+    // ---------------------------------------------------
+    // PARSE REMOTE TURBINE COMMANDS FROM BACKEND API
+    // ---------------------------------------------------
+    bool doActive = false;
+    if (response.indexOf("\"oxygenTurbineActive\":true") >= 0 ||
+        response.indexOf("\"oxygenTurbineActive\": true") >= 0 ||
+        response.indexOf("\"servoDO\":90") >= 0 ||
+        response.indexOf("\"servoDO\": 90") >= 0 ||
+        response.indexOf("\"oxygenTurbine\":\"ON\"") >= 0)
+    {
+      doActive = true;
+    }
+
+    bool waterActive = false;
+    if (response.indexOf("\"waterTurbineActive\":true") >= 0 ||
+        response.indexOf("\"waterTurbineActive\": true") >= 0 ||
+        response.indexOf("\"servoWater\":90") >= 0 ||
+        response.indexOf("\"servoWater\": 90") >= 0 ||
+        response.indexOf("\"waterTurbine\":\"ON\"") >= 0)
+    {
+      waterActive = true;
+    }
+
+    // Actuate Turbine 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18)
+    if (doActive)
+    {
+      servoDO.write(SERVO_DO_ON);
+      servoDOState = true;
+      Serial.println("--> TURBINE 1 [DO Turbine] -> ON (via Web API Action)");
+    }
+    else
+    {
+      servoDO.write(SERVO_DO_OFF);
+      servoDOState = false;
+      Serial.println("--> TURBINE 1 [DO Turbine] -> OFF (via Web API Action)");
+    }
+
+    // Actuate Turbine 2: Water Circulation Turbine (Servo 2 / GPIO 19)
+    if (waterActive)
+    {
+      servoHeat.write(SERVO_HEAT_ON);
+      servoHeatState = true;
+      Serial.println("--> TURBINE 2 [Water Turbine] -> ON (via Web API Action)");
+    }
+    else
+    {
+      servoHeat.write(SERVO_HEAT_OFF);
+      servoHeatState = false;
+      Serial.println("--> TURBINE 2 [Water Turbine] -> OFF (via Web API Action)");
+    }
+
+    http.end();
+    return true;
   }
   else
   {
@@ -663,8 +647,17 @@ void sendDataToAPI()
     Serial.print(responseCode);
     Serial.print(" - ");
     Serial.println(http.errorToString(responseCode));
-    Serial.println("Checklist: 1. Is Python app.py running? 2. Is IP 192.168.29.30 correct? 3. Is ESP32 and PC on same Wi-Fi 'Ricky'?");
+    if (responseCode == -1)
+    {
+      Serial.println("========================================================");
+      Serial.println("DIAGNOSTIC: Error -1 (Connection Refused)");
+      Serial.println("1. Are your PC and ESP32 connected to the SAME Wi-Fi network?");
+      Serial.println("   (Your PC is on a different Wi-Fi than the ESP32!)");
+      Serial.println("2. Is Python app.py running on port 8000?");
+      Serial.println("3. Once deployed to Render, change API_ENDPOINT to your public Render URL!");
+      Serial.println("========================================================");
+    }
+    http.end();
+    return false;
   }
-
-  http.end();
 }

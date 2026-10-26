@@ -1,12 +1,12 @@
 {
   "current": {
-    "dissolvedOxygen": 6.1,
-    "pH": 7.8,
-    "salinity": 18.2,
-    "temperature": 28.5,
+    "dissolvedOxygen": 6.0,
+    "pH": 7.85,
+    "salinity": 15.0,
+    "temperature": 0.0,
     "ammonia": 0.02,
     "hardness": 180.0,
-    "timestamp": 1793024284130
+    "timestamp": 1793028636598
   },
   "history": [
     {
@@ -2267,16 +2267,27 @@
       "ammonia": 0.02,
       "hardness": 180.0,
       "timestamp": 1793024284130
+    },
+    {
+      "dissolvedOxygen": 6.0,
+      "pH": 7.85,
+      "salinity": 15.0,
+      "temperature": 0.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793028636598
     }
   ],
   "control": {
     "aerator": "ON",
-    "oxygenTurbine": "AUTO",
+    "oxygenTurbine": "OFF",
     "waterPump": "AUTO",
     "aeratorActive": true,
     "oxygenTurbineActive": false,
     "waterPumpActive": false,
-    "lastChanged": 1789547020241
+    "lastChanged": 1793028636644,
+    "waterTurbineActive": true,
+    "waterTurbine": "ON"
   },
   "alerts": [
     {

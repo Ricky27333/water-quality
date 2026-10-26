@@ -16,11 +16,13 @@ const appState = {
   },
   history: [],
   control: {
-    aerator: 'AUTO',
     oxygenTurbine: 'AUTO',
+    waterTurbine: 'AUTO',
+    oxygenTurbineActive: false,
+    waterTurbineActive: false,
+    aerator: 'AUTO',
     waterPump: 'AUTO',
     aeratorActive: false,
-    oxygenTurbineActive: false,
     waterPumpActive: false,
     lastChanged: Date.now()
   },
@@ -54,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Setup periodic refresh & stale watchdog
   setInterval(checkStaleAndTick, 1000);
-  setInterval(fetchPondCurrent, 2500); // Live sync from ESP8266 API
+  setInterval(fetchPondCurrent, 2500); // Live sync from ESP32 API
 
   // Initialize Trend Chart
   initTrendChart();
@@ -112,10 +114,10 @@ function checkStaleAndTick() {
     if (connPill && connDot && connText) {
       connPill.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30';
       connDot.className = 'w-2 h-2 rounded-full bg-rose-500 animate-ping';
-      connText.textContent = 'ESP8266 OFFLINE';
+      connText.textContent = 'ESP32 OFFLINE';
     }
     if (hwToggleBtnText) {
-      hwToggleBtnText.textContent = 'Reconnect ESP8266';
+      hwToggleBtnText.textContent = 'Reconnect ESP32';
     }
     if (hwToggleIcon) {
       hwToggleIcon.className = 'w-3.5 h-3.5 text-emerald-400';
@@ -129,7 +131,7 @@ function checkStaleAndTick() {
     if (connPill && connDot && connText) {
       connPill.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
       connDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-      connText.textContent = 'ESP8266 Synced';
+      connText.textContent = 'ESP32 Synced';
     }
     if (hwToggleBtnText) {
       hwToggleBtnText.textContent = 'Test Disconnect (000)';
@@ -190,9 +192,19 @@ async function fetchPondCurrent() {
         timestamp: json.timestamp || Date.now()
       };
     }
-    if (json.actuators && json.actuators.oxygenTurbine) {
-      appState.control.oxygenTurbine = json.actuators.oxygenTurbine.mode;
-      appState.control.oxygenTurbineActive = json.actuators.oxygenTurbine.active;
+    if (json.actuators) {
+      if (json.actuators.oxygenTurbine) {
+        appState.control.oxygenTurbine = json.actuators.oxygenTurbine.mode;
+        appState.control.oxygenTurbineActive = json.actuators.oxygenTurbine.active;
+        appState.control.aerator = json.actuators.oxygenTurbine.mode;
+        appState.control.aeratorActive = json.actuators.oxygenTurbine.active;
+      }
+      if (json.actuators.waterTurbine) {
+        appState.control.waterTurbine = json.actuators.waterTurbine.mode;
+        appState.control.waterTurbineActive = json.actuators.waterTurbine.active;
+        appState.control.waterPump = json.actuators.waterTurbine.mode;
+        appState.control.waterPumpActive = json.actuators.waterTurbine.active;
+      }
     }
     updateLiveDashboard();
     updateControlUI();
@@ -550,50 +562,53 @@ function updateQuickActuators() {
     }
   };
 
-  updateDevice('aerator', ctrl.aerator, ctrl.aeratorActive, 'quick-dot-aerator', 'quick-val-aerator');
-  updateDevice('turbine', ctrl.oxygenTurbine, ctrl.oxygenTurbineActive, 'quick-dot-turbine', 'quick-val-turbine');
-  updateDevice('pump', ctrl.waterPump, ctrl.waterPumpActive, 'quick-dot-pump', 'quick-val-pump');
+  // Turbine 1: Dissolved Oxygen Turbine (GPIO 18)
+  updateDevice('oxygenTurbine', ctrl.oxygenTurbine, ctrl.oxygenTurbineActive, 'quick-dot-turbine', 'quick-val-turbine');
+  updateDevice('oxygenTurbine', ctrl.oxygenTurbine, ctrl.oxygenTurbineActive, 'quick-dot-aerator', 'quick-val-aerator');
+
+  // Turbine 2: Water Circulation Turbine (GPIO 19)
+  updateDevice('waterTurbine', ctrl.waterTurbine, ctrl.waterTurbineActive, 'quick-dot-water', 'quick-val-water');
+  updateDevice('waterTurbine', ctrl.waterTurbine, ctrl.waterTurbineActive, 'quick-dot-pump', 'quick-val-pump');
 
   // Sidebar indicators
-  const sAerator = document.getElementById('sidebar-aerator-state');
   const sTurbine = document.getElementById('sidebar-turbine-state');
+  const sWater = document.getElementById('sidebar-water-state');
+  const sAerator = document.getElementById('sidebar-aerator-state');
   const sPump = document.getElementById('sidebar-pump-state');
-  if (sAerator) sAerator.textContent = `${ctrl.aerator} (${ctrl.aeratorActive ? 'ON' : 'OFF'})`;
-  if (sTurbine) sTurbine.textContent = `${ctrl.oxygenTurbine} (${ctrl.oxygenTurbineActive ? 'ON' : 'OFF'})`;
-  if (sPump) sPump.textContent = `${ctrl.waterPump} (${ctrl.waterPumpActive ? 'ON' : 'OFF'})`;
+
+  const doText = `${ctrl.oxygenTurbine} (${ctrl.oxygenTurbineActive ? 'ON' : 'OFF'})`;
+  const waterText = `${ctrl.waterTurbine} (${ctrl.waterTurbineActive ? 'ON' : 'OFF'})`;
+
+  if (sTurbine) sTurbine.textContent = doText;
+  if (sAerator) sAerator.textContent = doText;
+  if (sWater) sWater.textContent = waterText;
+  if (sPump) sPump.textContent = waterText;
 }
 
-// --- DEVICE CONTROL MODULE ---
+// --- DEVICE CONTROL MODULE (2 TURBINES: DO TURBINE & WATER TURBINE) ---
 function updateControlUI() {
   const ctrl = appState.control;
 
   const devices = [
-    { key: 'aerator', mode: ctrl.aerator, active: ctrl.aeratorActive, icon: 'icon-aerator', badge: 'badge-actuator-aerator', container: 'icon-container-aerator' },
-    { key: 'oxygenTurbine', mode: ctrl.oxygenTurbine, active: ctrl.oxygenTurbineActive, icon: 'icon-turbine', badge: 'badge-actuator-turbine', container: 'icon-container-turbine' },
-    { key: 'waterPump', mode: ctrl.waterPump, active: ctrl.waterPumpActive, icon: 'icon-pump', badge: 'badge-actuator-pump', container: 'icon-container-pump' }
+    { key: 'oxygenTurbine', prefix: 'turbine', altPrefix: 'aerator', mode: ctrl.oxygenTurbine, active: ctrl.oxygenTurbineActive, icon: 'icon-turbine', badge: 'badge-actuator-turbine', container: 'icon-container-turbine' },
+    { key: 'waterTurbine', prefix: 'water', altPrefix: 'pump', mode: ctrl.waterTurbine, active: ctrl.waterTurbineActive, icon: 'icon-water', badge: 'badge-actuator-water', container: 'icon-container-water' }
   ];
 
   devices.forEach(d => {
     // Mode button highlights
-    const btnAuto = document.getElementById(`btn-${d.key === 'oxygenTurbine' ? 'turbine' : (d.key === 'waterPump' ? 'pump' : 'aerator')}-auto`);
-    const btnOn = document.getElementById(`btn-${d.key === 'oxygenTurbine' ? 'turbine' : (d.key === 'waterPump' ? 'pump' : 'aerator')}-on`);
-    const btnOff = document.getElementById(`btn-${d.key === 'oxygenTurbine' ? 'turbine' : (d.key === 'waterPump' ? 'pump' : 'aerator')}-off`);
-
-    const setBtnStyle = (btn, selected) => {
+    ['auto', 'on', 'off'].forEach(m => {
+      const btn = document.getElementById(`btn-${d.prefix}-${m}`) || document.getElementById(`btn-${d.altPrefix}-${m}`);
       if (!btn) return;
-      if (selected) {
+      const isSelected = (d.mode.toLowerCase() === m);
+      if (isSelected) {
         btn.className = 'py-2 rounded-lg text-xs font-bold transition-all bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-sm';
       } else {
         btn.className = 'py-2 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800';
       }
-    };
-
-    setBtnStyle(btnAuto, d.mode === 'AUTO');
-    setBtnStyle(btnOn, d.mode === 'ON');
-    setBtnStyle(btnOff, d.mode === 'OFF');
+    });
 
     // Running state badge
-    const badgeEl = document.getElementById(d.badge);
+    const badgeEl = document.getElementById(d.badge) || document.getElementById(`badge-actuator-${d.altPrefix}`);
     if (badgeEl) {
       if (d.active) {
         badgeEl.textContent = 'RUNNING';
@@ -605,14 +620,14 @@ function updateControlUI() {
     }
 
     // Equipment animation
-    const iconEl = document.getElementById(d.icon);
-    const containerEl = document.getElementById(d.container);
+    const iconEl = document.getElementById(d.icon) || document.getElementById(`icon-${d.altPrefix}`);
+    const containerEl = document.getElementById(d.container) || document.getElementById(`icon-container-${d.altPrefix}`);
     if (iconEl && containerEl) {
       if (d.active) {
-        iconEl.classList.add(d.key === 'waterPump' ? 'animate-water' : 'animate-spin-slow');
+        iconEl.classList.add('animate-spin-slow');
         containerEl.className = 'w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/40 shadow-lg shadow-emerald-500/10';
       } else {
-        iconEl.classList.remove('animate-water', 'animate-spin-slow');
+        iconEl.classList.remove('animate-spin-slow');
         containerEl.className = 'w-12 h-12 rounded-2xl bg-slate-800 text-slate-400 flex items-center justify-center border border-slate-700';
       }
     }
@@ -624,14 +639,55 @@ function updateControlUI() {
 
 async function setActuatorMode(device, mode) {
   playSound('click');
-  const update = { [device]: mode };
-  appState.control[device] = mode;
+  
+  // Normalize device names: map legacy aliases to the 2 Turbines
+  let normalizedDevice = device;
+  if (device === 'aerator') normalizedDevice = 'oxygenTurbine';
+  if (device === 'waterPump' || device === 'pump') normalizedDevice = 'waterTurbine';
+
+  const update = { [normalizedDevice]: mode };
+  appState.control[normalizedDevice] = mode;
+  if (normalizedDevice === 'oxygenTurbine') appState.control.aerator = mode;
+  if (normalizedDevice === 'waterTurbine') appState.control.waterPump = mode;
+
   updateControlUI();
   updateTurbineHeroPanel(appState.isOnline !== undefined ? appState.isOnline : true);
 
-  showToast(`Toggled ${device} mode to ${mode}`, 'info');
+  const deviceLabel = normalizedDevice === 'oxygenTurbine' ? 'Dissolved Oxygen Turbine' : 'Water Circulation Turbine';
+  showToast(`Toggled ${deviceLabel} mode to ${mode}`, 'info');
 
   await sendControlUpdate(update);
+}
+
+// --- API SENDER FOR TURBINE MODES ---
+async function sendControlUpdate(update) {
+  try {
+    const res = await fetch('/api/pond/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update)
+    });
+    if (!res.ok) throw new Error('API control update failed');
+    const json = await res.json();
+    if (json.control) {
+      appState.control = { ...appState.control, ...json.control };
+    }
+    if (json.oxygenTurbineActive !== undefined) appState.control.oxygenTurbineActive = json.oxygenTurbineActive;
+    if (json.waterTurbineActive !== undefined) appState.control.waterTurbineActive = json.waterTurbineActive;
+    if (json.oxygenTurbine !== undefined) appState.control.oxygenTurbine = json.oxygenTurbine;
+    if (json.waterTurbine !== undefined) appState.control.waterTurbine = json.waterTurbine;
+
+    appState.control.aerator = appState.control.oxygenTurbine;
+    appState.control.aeratorActive = appState.control.oxygenTurbineActive;
+    appState.control.waterPump = appState.control.waterTurbine;
+    appState.control.waterPumpActive = appState.control.waterTurbineActive;
+
+    updateControlUI();
+    updateTurbineHeroPanel(appState.isOnline !== undefined ? appState.isOnline : true);
+  } catch (err) {
+    console.error('Failed to send turbine control update:', err);
+    showToast('Failed to update turbine state on server', 'error');
+  }
 }
 
 // --- HISTORICAL TRENDS MODULE & APEXCHARTS ---
