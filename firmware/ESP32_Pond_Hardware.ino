@@ -16,9 +16,11 @@ const char* WIFI_PASSWORD = "00121212";
 // API ENDPOINT
 // =====================================================
 
-// Live Public Tunnel Endpoint: Bypasses mobile hotspot AP-isolation & Windows firewall completely!
-// (When deployed to Render, change to: https://your-app.onrender.com/api/esp32/telemetry)
-const char* API_ENDPOINT = "http://aquasmart-pond.loca.lt/api/esp32/telemetry";
+// Direct Local Hotspot Server (PC IP on hotspot "Ricky", fast 20ms response!):
+const char* API_ENDPOINT = "http://10.39.23.68:8000/api/esp32/telemetry";
+
+// When deployed to Render, change to your Render public URL:
+// const char* API_ENDPOINT = "https://your-app.onrender.com/api/esp32/telemetry";
 
 // =====================================================
 // ESP32 PIN CONNECTIONS
@@ -555,7 +557,7 @@ bool sendDataToAPI()
     http.begin(standardClient, API_ENDPOINT);
   }
 
-  http.setTimeout(1800); // 1.8s timeout
+  http.setTimeout(4000); // 4.0s network timeout buffer - prevents read timeout
   http.setReuse(true);   // HTTP 1.1 keep-alive connection reuse
 
   http.addHeader("Content-Type", "application/json");
