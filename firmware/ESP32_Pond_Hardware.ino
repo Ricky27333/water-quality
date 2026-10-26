@@ -111,6 +111,20 @@ bool servoDOState = false;
 bool servoHeatState = false;
 
 // =====================================================
+// FUNCTION PROTOTYPES (EXPLICIT C++ FORWARD DECLARATIONS)
+// =====================================================
+
+void readTemperature();
+void readPH();
+void readTDS();
+void calculateEstimatedDO();
+void controlDOServo();
+void controlTemperatureServo();
+String getWaterQualityStatus();
+void printSensorData();
+bool sendDataToAPI();
+
+// =====================================================
 // SETUP
 // =====================================================
 
@@ -322,17 +336,6 @@ void readTDS()
             + 857.39 * compensationVoltage) * 0.5;
 
   if (tdsValue < 0.0) tdsValue = 0.0;
-
-  salinityValue = tdsValue / 1000.0;
-}
-
-  // ---------------------------------------------------
-  // PROTOTYPE SALINITY ESTIMATION
-  // ---------------------------------------------------
-  //
-  // TDS is NOT directly equal to salinity.
-  // This is only a prototype estimate.
-  //
 
   salinityValue = tdsValue / 1000.0;
 }
