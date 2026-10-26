@@ -15,8 +15,8 @@ const char* WIFI_PASSWORD = "00121212";
 // API ENDPOINT
 // =====================================================
 
-// I have updated this to your computer's IP address from your screenshot!
-const char* API_ENDPOINT = "http://192.168.73.157:8000/api/esp32/telemetry";
+// Your computer's current Wi-Fi IP address (or replace with Render URL when deployed)
+const char* API_ENDPOINT = "http://192.168.29.30:8000/api/esp32/telemetry";
 
 // =====================================================
 // ESP32 PIN CONNECTIONS
@@ -659,9 +659,11 @@ void sendDataToAPI()
   }
   else
   {
-    Serial.println(
-      "API request failed."
-    );
+    Serial.print("API request failed. Error code: ");
+    Serial.print(responseCode);
+    Serial.print(" - ");
+    Serial.println(http.errorToString(responseCode));
+    Serial.println("Checklist: 1. Is Python app.py running? 2. Is IP 192.168.29.30 correct? 3. Is ESP32 and PC on same Wi-Fi 'Ricky'?");
   }
 
   http.end();
