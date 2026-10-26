@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Shrimp Farming IoT Dashboard (ESP8266 + 4 Sensors + Oxygen Turbine) | AquaSmart</title>
+  <meta name="description" content="Real-time IoT water quality monitoring dashboard for smart shrimp aquaculture ponds with ESP8266, 4 core sensors (DO, pH, Salinity, Temp), Oxygen Turbine automation, and hardware offline fail-safe.">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            pond: {
+              950: '#060a14',
+              900: '#080e1a',
+              800: '#0f172a',
+              700: '#1e293b',
+              600: '#334155',
+              cyan: '#06b6d4',
+              teal: '#0d9488',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#f43f5e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- ApexCharts for Smooth Historical Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+  <!-- Firebase Compat SDKs (v10.14.0) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-pond-900 text-slate-100 min-h-screen flex flex-col antialiased select-none">
+  <!-- Ambient background glow -->
+  <div class="ambient-glow"></div>
+
+  <!-- HARDWARE OFFLINE WARNING BANNER -->
+  <div id="stale-banner" class="hidden bg-rose-600/95 text-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-center border-b border-rose-400/40 flex items-center justify-center gap-3 transition-all duration-300 z-50 sticky top-0 shadow-xl backdrop-blur-md">
+    <i data-lucide="alert-octagon" class="w-5 h-5 text-white animate-bounce shrink-0"></i>
+    <span id="stale-banner-text"><strong>⚠️ ESP8266 SYSTEM OFFLINE:</strong> Telemetry ping disconnected! All 4 sensor readings are zeroed out (000) and Oxygen Turbines are held in safe mode.</span>
+    <button onclick="toggleHardwareOffline(false)" class="ml-2 px-2.5 py-0.5 rounded bg-white text-rose-700 text-xs font-bold hover:bg-rose-100 transition-all shadow-sm">Reconnect Telemetry</button>
+    <button onclick="dismissStaleBanner()" class="ml-2 underline text-xs text-rose-200 hover:text-white">Dismiss</button>
+  </div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="flex-1 flex flex-col md:flex-row relative z-10">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="glass-sidebar w-full md:w-64 lg:w-72 flex flex-col border-b md:border-b-0 md:border-r border-slate-800/80 p-4 shrink-0">
+      <!-- Brand & Pond Info -->
+      <div class="flex items-center gap-3 px-2 py-3 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white text-xl font-bold">
+          🦐
+        </div>
+        <div>
+          <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+            AquaSmart IoT
+            <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Pond #1</span>
+          </h1>
+          <p class="text-xs text-slate-400">Shrimp Water Quality System</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="space-y-1.5 flex-1" id="nav-tabs">
+        <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="nav-btn active w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 shadow-sm">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Live Dashboard</span>
+        </button>
+
+        <button onclick="switchTab('trends')" id="tab-btn-trends" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+          <i data-lucide="trending-up" class="w-4 h-4"></i>
+          <span>Historical Trends</span>
+        </button>
+
+        <button onclick="switchTab('control')" id="tab-btn-control" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+          <i data-lucide="sliders" class="w-4 h-4"></i>
+          <span>Device Control</span>
+        </button>
+
+        <button onclick="switchTab('alerts')" id="tab-btn-alerts" class="nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+          <div class="flex items-center gap-3">
+            <i data-lucide="bell" class="w-4 h-4"></i>
+            <span>Alerts & Log</span>
+          </div>
+          <span id="nav-alert-badge" class="hidden px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white">0</span>
+        </button>
+
+        <button onclick="switchTab('settings')" id="tab-btn-settings" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+          <span>Settings & Limits</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Quick Actuator Status Card -->
+      <div class="mt-4 p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 text-xs">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-semibold text-slate-300 uppercase tracking-wider text-[10px]">Actuator States</span>
+          <span class="text-[10px] text-cyan-400 font-mono">ESP8266 Relays</span>
+        </div>
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between py-1 border-b border-slate-800/50">
+            <span class="text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="fan" class="w-3 h-3 text-cyan-400"></i> Aerator
+            </span>
+            <span id="sidebar-aerator-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
+          </div>
+          <div class="flex items-center justify-between py-1 border-b border-slate-800/50">
+            <span class="text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="wind" class="w-3 h-3 text-emerald-400"></i> Turbine
+            </span>
+            <span id="sidebar-turbine-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
+          </div>
+          <div class="flex items-center justify-between py-1">
+            <span class="text-slate-400 flex items-center gap-1.5">
+              <i data-lucide="droplets" class="w-3 h-3 text-blue-400"></i> Water Pump
+            </span>
+            <span id="sidebar-pump-state" class="font-mono text-slate-300 font-medium">AUTO (OFF)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ESP8266 Hardware Status -->
+      <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+        <div class="flex items-center gap-2">
+          <i data-lucide="cpu" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span>ESP8266 Node</span>
+        </div>
+        <span id="esp-status-text" class="font-mono text-emerald-400 text-[11px]">Synced</span>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+
+      <!-- TOP HEADER BAR -->
+      <header class="glass-header sticky top-0 z-30 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <span class="text-lg font-bold text-white tracking-tight" id="page-title">Live Dashboard</span>
+            <span class="text-xs text-slate-400 font-mono hidden sm:inline" id="current-clock">--:--:--</span>
+            <!-- Live Temperature Pill in Header -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono cursor-pointer hover:bg-amber-500/20 transition-all" onclick="openParamModal('temperature')" title="Click for Water Temperature Diagnostics">
+              <i data-lucide="thermometer" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span class="text-slate-400 text-[10px]">Temp:</span>
+              <strong id="header-temp-val" class="text-white font-bold">28.4°C</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <!-- Audio Sound FX Toggle -->
+          <button onclick="toggleAudio()" id="audio-toggle-btn" title="Toggle Sound FX" class="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800/80 transition-colors border border-slate-700/40 flex items-center gap-1.5 text-xs">
+            <i data-lucide="volume-2" id="audio-icon" class="w-4 h-4 text-cyan-400"></i>
+            <span class="hidden sm:inline text-[11px] font-mono">Sound ON</span>
+          </button>
+
+          <!-- Hardware Disconnect Simulator Button -->
+          <button onclick="toggleHardwareOffline()" id="btn-hw-disconnect" class="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 transition-all shadow-sm" title="Simulate ESP8266 Hardware disconnect for demo">
+            <i data-lucide="power" id="hw-toggle-icon" class="w-3.5 h-3.5 text-rose-400"></i>
+            <span id="hw-toggle-btn-text">Test Disconnect (000)</span>
+          </button>
+
+          <!-- Interactive Sandbox Launcher -->
+          <button onclick="toggleSandbox()" class="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-purple-500/20 to-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:border-cyan-400 flex items-center gap-1.5 shadow-lg shadow-cyan-500/10 transition-all hover:scale-105">
+            <i data-lucide="flask-conical" class="w-3.5 h-3.5 text-cyan-400 animate-spin-slow"></i>
+            <span>Sensor Sandbox</span>
+          </button>
+
+          <!-- Live API Inspector Button -->
+          <button onclick="openApiInspector()" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 transition-all">
+            <i data-lucide="code" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span>API Inspector</span>
+          </button>
+
+          <!-- Connection Status Pill -->
+          <div id="connection-status-pill" class="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            <span id="connection-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="connection-text">ESP8266 Synced</span>
+          </div>
+
+          <!-- Last Updated Indicator -->
+          <div class="text-xs text-slate-400 hidden sm:flex items-center gap-1 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/50">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+            <span id="last-updated-text">Updating...</span>
+          </div>
+
+          <!-- Quick Refresh Button -->
+          <button onclick="refreshData()" title="Force Refresh" class="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800/80 transition-colors border border-slate-700/40">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB 1: LIVE DASHBOARD -->
+      <section id="tab-dashboard" class="p-4 sm:p-6 space-y-6">
+        
+        <!-- Pond Overall Health & Overview Bar -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col lg:flex-row items-center justify-between gap-6">
+          <div class="flex items-center gap-4">
+            <!-- Radial Health Ring -->
+            <div class="relative w-16 h-16 flex items-center justify-center shrink-0">
+              <svg class="w-16 h-16 transform -rotate-90">
+                <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="4" class="text-slate-800" fill="transparent" />
+                <circle id="health-circle" cx="32" cy="32" r="28" stroke="currentColor" stroke-width="4" class="text-emerald-400 transition-all duration-700" stroke-dasharray="175.9" stroke-dashoffset="10" stroke-linecap="round" fill="transparent" />
+              </svg>
+              <span id="health-score-val" class="absolute text-sm font-bold font-mono text-white">96%</span>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-base font-bold text-white">Pond Water Quality Condition</h2>
+                <span id="health-status-badge" class="badge-normal text-[11px] font-bold px-2 py-0.5 rounded-full">OPTIMAL</span>
+              </div>
+              <p id="health-description" class="text-xs text-slate-400 mt-0.5">All 6 monitored parameters are within the safe biological thresholds for shrimp cultivation.</p>
+            </div>
+          </div>
+
+          <!-- Prominent Water Temperature Hero Widget -->
+          <div class="flex items-center gap-3.5 bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-transparent px-4 py-3 rounded-2xl border border-amber-500/30 shadow-lg shadow-amber-500/10 cursor-pointer hover:border-amber-400/60 transition-all shrink-0" onclick="openParamModal('temperature')" title="Click for Temperature Diagnostics">
+            <div class="w-11 h-11 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/40 shrink-0">
+              <i data-lucide="thermometer" class="w-6 h-6 animate-pulse"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] uppercase font-mono font-bold text-amber-300/90 tracking-wider">Water Temperature</span>
+                <span id="hero-temp-badge" class="badge-normal text-[9px] font-bold px-1.5 py-0.2 rounded-full">OPTIMAL</span>
+              </div>
+              <div class="flex items-baseline gap-1.5 mt-0.5">
+                <span id="hero-temp-val" class="text-2xl font-black font-mono text-white tracking-tight">28.4°C</span>
+                <span id="hero-temp-f" class="text-xs font-mono text-slate-400">(83.1°F)</span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono block mt-0.5">Safe: 26.0 - 32.0 °C</span>
+            </div>
+          </div>
+
+          <!-- Actuator Quick Summary -->
+          <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-cyan-500/40 transition-all" onclick="setActuatorMode('aerator', appState.control.aerator === 'ON' ? 'OFF' : 'ON')">
+              <span class="w-2 h-2 rounded-full bg-cyan-400" id="quick-dot-aerator"></span>
+              <span class="text-slate-400">Aerator:</span>
+              <span class="font-bold text-white font-mono" id="quick-val-aerator">AUTO</span>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-emerald-500/40 transition-all" onclick="setActuatorMode('oxygenTurbine', appState.control.oxygenTurbine === 'ON' ? 'OFF' : 'ON')">
+              <span class="w-2 h-2 rounded-full bg-emerald-400" id="quick-dot-turbine"></span>
+              <span class="text-slate-400">Turbine:</span>
+              <span class="font-bold text-white font-mono" id="quick-val-turbine">AUTO</span>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800 text-xs cursor-pointer hover:border-blue-500/40 transition-all" onclick="setActuatorMode('waterPump', appState.control.waterPump === 'ON' ? 'OFF' : 'ON')">
+              <span class="w-2 h-2 rounded-full bg-blue-400" id="quick-dot-pump"></span>
+              <span class="text-slate-400">Pump:</span>
+              <span class="font-bold text-white font-mono" id="quick-val-pump">AUTO</span>
+            </div>
+            <button onclick="switchTab('control')" class="px-3 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-xs font-semibold transition-all border border-cyan-500/30 flex items-center gap-1.5">
+              <span>Control Panel</span>
+              <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- INTERACTIVE POND PHYSICAL VISUALIZER & ECOSYSTEM DIGITAL TWIN -->
+        <div class="pond-sim-container h-52 sm:h-60 p-4 flex flex-col justify-between relative shadow-2xl">
+          <!-- Animated Water Surface Wave -->
+          <div class="water-wave-layer"></div>
+
+          <!-- Sky / Surface Equipment Bar -->
+          <div class="relative z-10 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-1 rounded-lg bg-slate-950/70 text-cyan-300 text-[11px] font-mono font-semibold border border-cyan-500/30 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                Pond #1 Physical Cross-Section
+              </span>
+              <span class="text-[10px] text-slate-300 font-sans hidden sm:inline bg-slate-900/60 px-2 py-0.5 rounded">Click equipment to toggle</span>
+            </div>
+
+            <!-- Inflow Water Pump Visual -->
+            <div class="flex items-center gap-2 cursor-pointer bg-slate-950/75 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-blue-500/50 transition-all" onclick="setActuatorMode('waterPump', appState.control.waterPump === 'ON' ? 'OFF' : 'ON')" title="Toggle Inflow Pump">
+              <div id="sim-pump-wheel" class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 border border-blue-500/30">
+                <i data-lucide="droplets" class="w-3.5 h-3.5"></i>
+              </div>
+              <div class="text-[11px]">
+                <span class="text-slate-400 block text-[9px] leading-tight">INFLOW PUMP</span>
+                <span id="sim-pump-label" class="font-bold text-white font-mono text-[10px]">AUTO</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Surface Paddlewheel Aerator Visual (floating on water surface) -->
+          <div class="absolute top-2 left-1/4 transform -translate-x-1/2 cursor-pointer z-10 flex flex-col items-center" onclick="setActuatorMode('aerator', appState.control.aerator === 'ON' ? 'OFF' : 'ON')" title="Click to toggle Aerator">
+            <div class="bg-slate-950/80 px-2 py-0.5 rounded text-[9px] font-mono text-cyan-300 border border-cyan-500/30 mb-1">
+              SURFACE AERATOR: <span id="sim-aerator-text">AUTO</span>
+            </div>
+            <div id="sim-aerator-paddle" class="w-10 h-10 rounded-full bg-gradient-to-tr from-cyan-600 to-cyan-400 flex items-center justify-center text-slate-950 shadow-lg shadow-cyan-500/40">
+              <i data-lucide="fan" class="w-5 h-5"></i>
+            </div>
+            <div id="sim-aerator-splash" class="hidden text-cyan-300 text-xs animate-bounce mt-0.5">💦 💦</div>
+          </div>
+
+          <!-- Ambient Water Shimmer Layer -->
+          <div class="absolute inset-0 bg-gradient-to-b from-cyan-950/30 via-blue-950/20 to-slate-950/60 pointer-events-none"></div>
+
+          <!-- Oxygen Micro-Bubbles Container (Active when Turbine is running) -->
+          <div id="sim-bubbles-container" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+
+          <!-- Pond Floor & Deep Oxygen Venturi Turbine Visual -->
+          <div class="relative z-10 flex items-end justify-between pt-4 border-t border-slate-700/30">
+            <!-- Deep Venturi Turbine -->
+            <div class="flex items-center gap-2 cursor-pointer bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-emerald-500/50 transition-all" onclick="setActuatorMode('oxygenTurbine', appState.control.oxygenTurbine === 'ON' ? 'OFF' : 'ON')" title="Toggle Oxygen Turbine">
+              <div id="sim-turbine-wheel" class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/30">
+                <i data-lucide="wind" class="w-3.5 h-3.5"></i>
+              </div>
+              <div class="text-[11px]">
+                <span class="text-slate-400 block text-[9px] leading-tight">DEEP TURBINE</span>
+                <span id="sim-turbine-label" class="font-bold text-white font-mono text-[10px]">AUTO</span>
+              </div>
+            </div>
+
+            <!-- Benthic Sand Layer & Water Temp Info -->
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="text-[10px] text-slate-400 font-mono bg-slate-950/70 px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1.5">
+                <i data-lucide="thermometer" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span>Pond Water:</span>
+                <strong id="sim-temp-val" class="text-amber-300">28.4°C</strong>
+                <span id="sim-temp-f" class="text-slate-400 text-[9px]">(83.1°F)</span>
+              </div>
+              <div class="text-[10px] text-slate-400 font-mono bg-slate-950/60 px-2.5 py-1 rounded-lg border border-slate-800/80">
+                <span>Benthic Zone: </span>
+                <span id="sim-pond-depth" class="text-cyan-300">1.8m Depth | DO: <strong id="sim-do-pct">92%</strong></span>
+              </div>
+            </div>
+        </div>
+
+        <!-- OXYGEN TURBINE AUTOMATION & ESP8266 SYSTEM SPOTLIGHT -->
+        <div class="glass-card rounded-2xl p-5 border border-cyan-500/30 bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-cyan-950/20 shadow-xl space-y-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div id="hero-turbine-icon-box" class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                <i data-lucide="wind" id="hero-turbine-icon" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-base font-bold text-white tracking-tight">Oxygen Turbine Automation System</h3>
+                  <span id="turbine-live-badge" class="badge-normal text-[10px] font-bold px-2 py-0.5 rounded-full">AUTO (STANDBY)</span>
+                </div>
+                <p class="text-xs text-slate-300 mt-0.5">
+                  Microcontroller: <strong class="text-cyan-300 font-mono">ESP8266 NodeMCU</strong> | Relay Pin: <strong class="text-emerald-400 font-mono">Pin D5 (GPIO 14)</strong>
+                </p>
+              </div>
+            </div>
+
+            <!-- Controls & Threshold Summary -->
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div class="bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-mono text-slate-400">
+                <span class="text-slate-500">Auto Trigger: </span>
+                <span class="text-cyan-300 font-semibold">DO &lt; 4.0 mg/L</span>
+                <span class="text-slate-500"> | Stop: </span>
+                <span class="text-emerald-300 font-semibold">DO &ge; 5.5 mg/L</span>
+              </div>
+              <div class="flex items-center gap-1 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
+                <button onclick="setActuatorMode('oxygenTurbine', 'AUTO')" id="hero-btn-turbine-auto" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all">AUTO</button>
+                <button onclick="setActuatorMode('oxygenTurbine', 'ON')" id="hero-btn-turbine-on" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all">ON</button>
+                <button onclick="setActuatorMode('oxygenTurbine', 'OFF')" id="hero-btn-turbine-off" class="px-2.5 py-1 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all">OFF</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 CORE SENSOR CARDS GRID -->
+        <div>
+          <div class="flex items-center justify-between mb-3 px-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-cyan-400 font-mono">4 Core Hardware Sensors</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">ESP8266 Live Telemetry</span>
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono hidden sm:inline">Offline Fail-Safe: Auto '000' Display</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+
+            <!-- 1. Dissolved Oxygen (DO) -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-cyan-400/50 hover:scale-[1.01] transition-all" id="card-do" onclick="openParamModal('dissolvedOxygen')" title="Click for deep-dive biological diagnostics">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                    <i data-lucide="wind" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-200">Dissolved Oxygen</h3>
+                    <span class="text-[10px] text-cyan-400/90 font-mono block">Pin: ADS1115 (A0)</span>
+                  </div>
+                </div>
+                <span id="badge-do" class="badge-normal text-xs font-semibold px-2.5 py-0.5 rounded-full">Normal</span>
+              </div>
+
+              <div class="my-4">
+                <div class="flex items-baseline gap-2">
+                  <span id="val-do" class="text-3xl font-extrabold font-mono text-white tracking-tight">--</span>
+                  <span class="text-sm font-medium text-slate-400">mg/L</span>
+                </div>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                    <span>Safe Range</span>
+                    <span class="font-mono text-slate-300" id="range-do">4.0 - 8.0 mg/L</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden relative">
+                    <div id="gauge-do" class="gauge-bar-fill bg-cyan-400 h-full rounded-full" style="width: 75%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> Respiration vital
+                </span>
+                <span id="trend-do" class="font-mono text-slate-300">Stable</span>
+              </div>
+            </div>
+
+            <!-- 2. pH Level -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-purple-400/50 hover:scale-[1.01] transition-all" id="card-ph" onclick="openParamModal('pH')" title="Click for deep-dive biological diagnostics">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    <i data-lucide="flask-conical" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-200">pH Level</h3>
+                    <span class="text-[10px] text-purple-400/90 font-mono block">Pin: ADS1115 (A1)</span>
+                  </div>
+                </div>
+                <span id="badge-ph" class="badge-normal text-xs font-semibold px-2.5 py-0.5 rounded-full">Normal</span>
+              </div>
+
+              <div class="my-4">
+                <div class="flex items-baseline gap-2">
+                  <span id="val-ph" class="text-3xl font-extrabold font-mono text-white tracking-tight">--</span>
+                  <span class="text-sm font-medium text-slate-400">pH</span>
+                </div>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                    <span>Safe Range</span>
+                    <span class="font-mono text-slate-300" id="range-ph">7.5 - 8.5</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden relative">
+                    <div id="gauge-ph" class="gauge-bar-fill bg-purple-400 h-full rounded-full" style="width: 50%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="activity" class="w-3.5 h-3.5 text-purple-400"></i> Alkaline optimal
+                </span>
+                <span id="trend-ph" class="font-mono text-slate-300">Stable</span>
+              </div>
+            </div>
+
+            <!-- 3. Salinity -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-blue-400/50 hover:scale-[1.01] transition-all" id="card-salinity" onclick="openParamModal('salinity')" title="Click for deep-dive biological diagnostics">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <i data-lucide="waves" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-200">Water Salinity</h3>
+                    <span class="text-[10px] text-blue-400/90 font-mono block">Pin: ADS1115 (A2)</span>
+                  </div>
+                </div>
+                <span id="badge-salinity" class="badge-normal text-xs font-semibold px-2.5 py-0.5 rounded-full">Normal</span>
+              </div>
+
+              <div class="my-4">
+                <div class="flex items-baseline gap-2">
+                  <span id="val-salinity" class="text-3xl font-extrabold font-mono text-white tracking-tight">--</span>
+                  <span class="text-sm font-medium text-slate-400">ppt</span>
+                </div>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                    <span>Safe Range</span>
+                    <span class="font-mono text-slate-300" id="range-salinity">10.0 - 25.0 ppt</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden relative">
+                    <div id="gauge-salinity" class="gauge-bar-fill bg-blue-400 h-full rounded-full" style="width: 60%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="droplet" class="w-3.5 h-3.5 text-blue-400"></i> Osmoregulation
+                </span>
+                <span id="trend-salinity" class="font-mono text-slate-300">Stable</span>
+              </div>
+            </div>
+
+            <!-- 4. Water Temperature -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-amber-400/50 hover:scale-[1.01] transition-all" id="card-temperature" onclick="openParamModal('temperature')" title="Click for deep-dive biological diagnostics">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <i data-lucide="thermometer" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-200">Water Temperature</h3>
+                    <span class="text-[10px] text-amber-400/90 font-mono block">Pin: DS18B20 (Pin D4)</span>
+                  </div>
+                </div>
+                <span id="badge-temperature" class="badge-normal text-xs font-semibold px-2.5 py-0.5 rounded-full">Normal</span>
+              </div>
+
+              <div class="my-4">
+                <div class="flex items-baseline gap-2">
+                  <span id="val-temperature" class="text-3xl font-extrabold font-mono text-white tracking-tight">--</span>
+                  <span class="text-sm font-medium text-slate-400">°C</span>
+                  <span id="val-temperature-f" class="text-xs font-mono text-amber-300/80 ml-1">(-- °F)</span>
+                </div>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                    <span>Safe Range</span>
+                    <span class="font-mono text-slate-300" id="range-temperature">26.0 - 32.0 °C</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden relative">
+                    <div id="gauge-temperature" class="gauge-bar-fill bg-amber-400 h-full rounded-full" style="width: 50%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i> Thermal metabolism
+                </span>
+                <span id="trend-temperature" class="font-mono text-slate-300">Stable</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- COLLAPSIBLE AUXILIARY LAB PARAMETERS (Ammonia & Hardness) -->
+        <div class="pt-2">
+          <button onclick="toggleAuxiliaryCards()" class="flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors mb-3 px-1">
+            <i data-lucide="chevron-down" id="aux-toggle-icon" class="w-4 h-4 text-cyan-400 transition-transform"></i>
+            <span>Auxiliary Lab Indicators (Ammonia TAN & Hardness)</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">Optional</span>
+          </button>
+
+          <div id="auxiliary-cards-container" class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <!-- 5. Ammonia (TAN) -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-rose-400/50 transition-all" id="card-ammonia" onclick="openParamModal('ammonia')">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-200">Ammonia (TAN)</h3>
+                    <span class="text-[10px] text-slate-400 font-mono">Lab Assay / Estimated</span>
+                  </div>
+                </div>
+                <span id="badge-ammonia" class="badge-normal text-xs font-semibold px-2.5 py-0.5 rounded-full">Normal</span>
+              </div>
+
+              <div class="my-4">
+                <div class="flex items-baseline gap-2">
+                  <span id="val-ammonia" class="text-3xl font-extrabold font-mono text-white tracking-tight">--</span>
+                  <span class="text-sm font-medium text-slate-400">mg/L</span>
+                </div>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                    <span>Safe Range</span>
+                    <span class="font-mono text-slate-300" id="range-ammonia">&lt; 0.10 mg/L</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden relative">
+                    <div id="gauge-ammonia" class="gauge-bar-fill bg-rose-400 h-full rounded-full" style="width: 30%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="skull" class="w-3.5 h-3.5 text-rose-400"></i> Toxic TAN limit
+                </span>
+                <span id="trend-ammonia" class="font-mono text-slate-300">Stable</span>
+              </div>
+            </div>
+
+            <!-- 6. Total Hardness -->
+            <div class="glass-card rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-teal-400/50 transition-all" id="card-hardness" onclick="openParamModal('hardness')">
+              <div class="flex items-start justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="p-2.5 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-sm font-semibold text-slate-200">Total Hardness</h3>
+                    <span class="text-[10px] text-slate-400 font-mono">Minerals (CaCO₃)</span>
+                  </div>
+                </div>
+                <span id="badge-hardness" class="badge-normal text-xs font-semibold px-2.5 py-0.5 rounded-full">Normal</span>
+              </div>
+
+              <div class="my-4">
+                <div class="flex items-baseline gap-2">
+                  <span id="val-hardness" class="text-3xl font-extrabold font-mono text-white tracking-tight">--</span>
+                  <span class="text-sm font-medium text-slate-400">mg/L</span>
+                </div>
+                <div class="mt-3">
+                  <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                    <span>Safe Range</span>
+                    <span class="font-mono text-slate-300" id="range-hardness">100 - 300 mg/L</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden relative">
+                    <div id="gauge-hardness" class="gauge-bar-fill bg-teal-400 h-full rounded-full" style="width: 65%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-1">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5 text-teal-400"></i> Molting support
+                </span>
+                <span id="trend-hardness" class="font-mono text-slate-300">Stable</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 2: HISTORICAL TRENDS -->
+      <section id="tab-trends" class="hidden p-4 sm:p-6 space-y-6">
+        
+        <!-- Controls Bar for Charts -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <!-- Parameter View Dropdown -->
+            <label class="text-xs text-slate-400 font-medium">Parameter View:</label>
+            <select id="trend-param-select" onchange="changeTrendView()" class="bg-slate-900 text-slate-200 text-xs rounded-xl px-3 py-2 border border-slate-700 focus:outline-none focus:border-cyan-500">
+              <option value="dissolvedOxygen">Dissolved Oxygen (DO)</option>
+              <option value="pH">pH Level</option>
+              <option value="salinity">Salinity</option>
+              <option value="temperature">Water Temperature</option>
+              <option value="ammonia">Ammonia (TAN)</option>
+              <option value="hardness">Total Hardness</option>
+              <option value="overlay_temp_do">Overlay: Temp vs Dissolved Oxygen</option>
+              <option value="overlay_ph_ammonia">Overlay: pH vs Ammonia</option>
+              <option value="overlay_all">Multi-Parameter Normalized View</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <!-- Time Range Toggles -->
+            <div class="bg-slate-900/90 p-1 rounded-xl border border-slate-800 flex items-center gap-1 text-xs">
+              <button onclick="changeTimeRange('1h')" id="btn-range-1h" class="px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-white">1 Hour</button>
+              <button onclick="changeTimeRange('24h')" id="btn-range-24h" class="px-3 py-1.5 rounded-lg transition-all bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold">24 Hours</button>
+              <button onclick="changeTimeRange('7d')" id="btn-range-7d" class="px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-white">7 Days</button>
+            </div>
+
+            <!-- Export CSV Button -->
+            <button onclick="exportCSV()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-all">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Summary Statistics Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="glass-card rounded-xl p-3.5 border border-slate-800 text-center">
+            <span class="text-[11px] text-slate-400 uppercase tracking-wider block mb-0.5">Average</span>
+            <span id="stat-avg" class="text-xl font-bold font-mono text-white">--</span>
+          </div>
+          <div class="glass-card rounded-xl p-3.5 border border-slate-800 text-center">
+            <span class="text-[11px] text-slate-400 uppercase tracking-wider block mb-0.5">Minimum</span>
+            <span id="stat-min" class="text-xl font-bold font-mono text-emerald-400">--</span>
+          </div>
+          <div class="glass-card rounded-xl p-3.5 border border-slate-800 text-center">
+            <span class="text-[11px] text-slate-400 uppercase tracking-wider block mb-0.5">Maximum</span>
+            <span id="stat-max" class="text-xl font-bold font-mono text-amber-400">--</span>
+          </div>
+          <div class="glass-card rounded-xl p-3.5 border border-slate-800 text-center">
+            <span class="text-[11px] text-slate-400 uppercase tracking-wider block mb-0.5">Data Points</span>
+            <span id="stat-count" class="text-xl font-bold font-mono text-cyan-400">--</span>
+          </div>
+        </div>
+
+        <!-- Main Chart Container -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="line-chart" class="w-4 h-4 text-cyan-400"></i>
+              <span id="chart-title">Dissolved Oxygen Trend</span>
+            </h3>
+            <span class="text-[11px] text-slate-400 font-mono">Syncs from /pond/history</span>
+          </div>
+          <div id="historical-chart" class="w-full h-[400px]"></div>
+        </div>
+
+      </section>
+
+      <!-- TAB 3: DEVICE CONTROL PANEL -->
+      <section id="tab-control" class="hidden p-4 sm:p-6 space-y-6">
+
+        <div class="glass-card rounded-2xl p-5 border border-slate-800">
+          <div class="flex items-start justify-between">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="power" class="w-5 h-5 text-cyan-400"></i>
+                Actuator Equipment Relay Controls
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">
+                Controls the 3-channel relay module on the ESP32. Switch between <strong>AUTO</strong> (firmware-driven based on water parameters) or <strong>MANUAL</strong> overrides.
+              </p>
+            </div>
+            <span class="text-[11px] font-mono text-cyan-300 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20">
+              Synced with /pond/control
+            </span>
+          </div>
+        </div>
+
+        <!-- Actuators Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          <!-- ACTUATOR 1: AERATOR -->
+          <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between" id="control-card-aerator">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div id="icon-container-aerator" class="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
+                    <i data-lucide="fan" id="icon-aerator" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-white">Surface Aerator</h3>
+                    <span class="text-xs text-slate-400 font-mono">Relay Pin: GPIO 25</span>
+                  </div>
+                </div>
+                <span id="badge-actuator-aerator" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  OFF
+                </span>
+              </div>
+
+              <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                Paddlewheel aerator that breaks surface tension, introducing atmospheric oxygen and breaking thermal stratification.
+              </p>
+            </div>
+
+            <div class="space-y-3">
+              <label class="text-[11px] text-slate-400 uppercase tracking-wider block">Mode Selection</label>
+              <div class="grid grid-cols-3 gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+                <button onclick="setActuatorMode('aerator', 'AUTO')" id="btn-aerator-auto" class="py-2 rounded-lg text-xs font-semibold transition-all">AUTO</button>
+                <button onclick="setActuatorMode('aerator', 'ON')" id="btn-aerator-on" class="py-2 rounded-lg text-xs font-semibold transition-all">ON</button>
+                <button onclick="setActuatorMode('aerator', 'OFF')" id="btn-aerator-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
+              </div>
+              <div class="text-[11px] text-slate-500 font-mono flex items-center justify-between pt-2">
+                <span>Rule: Auto ON when DO &lt; 4.0 mg/L</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTUATOR 2: OXYGEN TURBINE -->
+          <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between" id="control-card-turbine">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div id="icon-container-turbine" class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                    <i data-lucide="wind" id="icon-turbine" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-white">Oxygen Turbine</h3>
+                    <span class="text-xs text-slate-400 font-mono">Relay Pin: GPIO 26</span>
+                  </div>
+                </div>
+                <span id="badge-actuator-turbine" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  OFF
+                </span>
+              </div>
+
+              <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                Deep-water venturi injector turbine that infuses micro-bubbles directly into benthic pond zones where shrimp forage.
+              </p>
+            </div>
+
+            <div class="space-y-3">
+              <label class="text-[11px] text-slate-400 uppercase tracking-wider block">Mode Selection</label>
+              <div class="grid grid-cols-3 gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+                <button onclick="setActuatorMode('oxygenTurbine', 'AUTO')" id="btn-turbine-auto" class="py-2 rounded-lg text-xs font-semibold transition-all">AUTO</button>
+                <button onclick="setActuatorMode('oxygenTurbine', 'ON')" id="btn-turbine-on" class="py-2 rounded-lg text-xs font-semibold transition-all">ON</button>
+                <button onclick="setActuatorMode('oxygenTurbine', 'OFF')" id="btn-turbine-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
+              </div>
+              <div class="text-[11px] text-slate-500 font-mono flex items-center justify-between pt-2">
+                <span>Rule: Auto ON when DO &lt; 3.8 mg/L</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTUATOR 3: WATER PUMP -->
+          <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-col justify-between" id="control-card-pump">
+            <div>
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div id="icon-container-pump" class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20">
+                    <i data-lucide="droplets" id="icon-pump" class="w-6 h-6"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-base font-bold text-white">Water Pump</h3>
+                    <span class="text-xs text-slate-400 font-mono">Relay Pin: GPIO 27</span>
+                  </div>
+                </div>
+                <span id="badge-actuator-pump" class="text-xs font-bold font-mono px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  OFF
+                </span>
+              </div>
+
+              <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                Inflow water pump for clean water flushing, water volume exchange, and lowering elevated toxic ammonia and heat.
+              </p>
+            </div>
+
+            <div class="space-y-3">
+              <label class="text-[11px] text-slate-400 uppercase tracking-wider block">Mode Selection</label>
+              <div class="grid grid-cols-3 gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+                <button onclick="setActuatorMode('waterPump', 'AUTO')" id="btn-pump-auto" class="py-2 rounded-lg text-xs font-semibold transition-all">AUTO</button>
+                <button onclick="setActuatorMode('waterPump', 'ON')" id="btn-pump-on" class="py-2 rounded-lg text-xs font-semibold transition-all">ON</button>
+                <button onclick="setActuatorMode('waterPump', 'OFF')" id="btn-pump-off" class="py-2 rounded-lg text-xs font-semibold transition-all">OFF</button>
+              </div>
+              <div class="text-[11px] text-slate-500 font-mono flex items-center justify-between pt-2">
+                <span>Rule: Auto ON if Ammonia &gt; 0.1 or Temp &gt; 32°C</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 4: ALERTS MODULE -->
+      <section id="tab-alerts" class="hidden p-4 sm:p-6 space-y-6">
+
+        <!-- Top Actions Bar -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-5 h-5 text-rose-400"></i>
+              Real-Time Water Quality Alert Incident Log
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Violations pushed to <code>/pond/alerts</code> when sensor readings breach configured thresholds.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <!-- Test Alert Trigger -->
+            <button onclick="triggerSimulatedAlert('dissolvedOxygen', 'critical')" class="px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-1.5 border border-rose-500/30 transition-all">
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span>Simulate DO Critical Alert</span>
+            </button>
+            <button onclick="triggerSimulatedAlert('ammonia', 'warning')" class="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 border border-amber-500/30 transition-all">
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span>Simulate Ammonia Warning</span>
+            </button>
+            <!-- Clear Alerts -->
+            <button onclick="clearAllAlerts()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-all">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              <span>Clear Log</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="flex items-center gap-2 text-xs">
+          <button onclick="filterAlerts('all')" id="filter-all" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold">All Alerts (<span id="count-all">0</span>)</button>
+          <button onclick="filterAlerts('critical')" id="filter-critical" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Critical (<span id="count-critical">0</span>)</button>
+          <button onclick="filterAlerts('warning')" id="filter-warning" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">Warnings (<span id="count-warning">0</span>)</button>
+        </div>
+
+        <!-- Alerts Table / List -->
+        <div class="glass-card rounded-2xl border border-slate-800 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+                <tr>
+                  <th class="px-4 py-3">Severity</th>
+                  <th class="px-4 py-3">Parameter</th>
+                  <th class="px-4 py-3">Measured Value</th>
+                  <th class="px-4 py-3">Safe Threshold Range</th>
+                  <th class="px-4 py-3">Incident Description</th>
+                  <th class="px-4 py-3 text-right">Timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="alerts-table-body" class="divide-y divide-slate-800/60 font-mono">
+                <tr>
+                  <td colspan="6" class="px-4 py-8 text-center text-slate-500 font-sans">
+                    No active threshold violations recorded. Water quality is within safe bounds!
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- TAB 5: SETTINGS MODULE -->
+      <section id="tab-settings" class="hidden p-4 sm:p-6 space-y-6">
+
+        <!-- Water Quality Thresholds Card -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="sliders-horizontal" class="w-5 h-5 text-cyan-400"></i>
+                Water Quality Threshold Configuration
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">
+                Sets the safe biological bounds. These values dynamically drive the status badges on the Live Dashboard, automatic relay triggers, and alert dispatches.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="resetThresholdsToDefaults()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition-all">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                <span>Reset Defaults</span>
+              </button>
+              <button onclick="saveThresholdSettings()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all">
+                <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                <span>Save to /pond/settings</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Thresholds Input Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+
+            <!-- DO -->
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <label class="text-xs font-bold text-slate-200 block mb-2">Dissolved Oxygen (DO) (mg/L)</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Min Threshold</span>
+                  <input type="number" step="0.1" id="thresh-do-min" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="4.0">
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Max Threshold</span>
+                  <input type="number" step="0.1" id="thresh-do-max" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="8.0">
+                </div>
+              </div>
+            </div>
+
+            <!-- pH -->
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <label class="text-xs font-bold text-slate-200 block mb-2">pH Level (Acidity/Alkalinity)</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Min Threshold</span>
+                  <input type="number" step="0.1" id="thresh-ph-min" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="7.5">
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Max Threshold</span>
+                  <input type="number" step="0.1" id="thresh-ph-max" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="8.5">
+                </div>
+              </div>
+            </div>
+
+            <!-- Salinity -->
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <label class="text-xs font-bold text-slate-200 block mb-2">Salinity (ppt)</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Min Threshold</span>
+                  <input type="number" step="0.5" id="thresh-salinity-min" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="10.0">
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Max Threshold</span>
+                  <input type="number" step="0.5" id="thresh-salinity-max" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="25.0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Temperature -->
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <label class="text-xs font-bold text-slate-200 block mb-2">Water Temperature (°C)</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Min Threshold</span>
+                  <input type="number" step="0.5" id="thresh-temp-min" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="26.0">
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Max Threshold</span>
+                  <input type="number" step="0.5" id="thresh-temp-max" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="32.0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Ammonia -->
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <label class="text-xs font-bold text-slate-200 block mb-2">Ammonia (TAN) (mg/L)</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Min (Lower Bound)</span>
+                  <input type="number" step="0.01" id="thresh-ammonia-min" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="0.00">
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Max (Toxic Limit)</span>
+                  <input type="number" step="0.01" id="thresh-ammonia-max" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="0.10">
+                </div>
+              </div>
+            </div>
+
+            <!-- Total Hardness -->
+            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800">
+              <label class="text-xs font-bold text-slate-200 block mb-2">Total Hardness (mg/L CaCO₃)</label>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Min Threshold</span>
+                  <input type="number" step="5" id="thresh-hardness-min" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="100">
+                </div>
+                <div>
+                  <span class="text-[10px] text-slate-400 block mb-1">Max Threshold</span>
+                  <input type="number" step="5" id="thresh-hardness-max" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyan-500" value="300">
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Firebase Configuration & Simulator Control -->
+        <div class="glass-card rounded-2xl p-5 border border-slate-800 space-y-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="database" class="w-5 h-5 text-amber-400"></i>
+                Firebase Realtime Database Credentials
+              </h2>
+              <p class="text-xs text-slate-400 mt-1">
+                Enter your Firebase project keys below. These are stored securely in your browser and synced with the Python full-stack server.
+              </p>
+            </div>
+            <!-- Simulation Mode Toggle -->
+            <div class="flex items-center gap-3 bg-slate-900/90 px-3.5 py-2 rounded-xl border border-slate-800">
+              <span class="text-xs text-slate-300 font-semibold">Telemetry Simulator:</span>
+              <button onclick="toggleTelemetrySimulator()" id="btn-sim-toggle" class="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                ACTIVE
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">Database URL (Required for RTDB)</label>
+              <input type="text" id="cfg-databaseURL" placeholder="https://your-project-id-default-rtdb.firebaseio.com" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">API Key (apiKey)</label>
+              <input type="text" id="cfg-apiKey" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">Project ID</label>
+              <input type="text" id="cfg-projectId" placeholder="smart-shrimp-pond-demo" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-slate-300 block mb-1">Auth Domain</label>
+              <input type="text" id="cfg-authDomain" placeholder="your-project-id.firebaseapp.com" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-500">
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-2">
+            <button onclick="saveFirebaseCredentials()" class="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 transition-all">
+              <i data-lucide="check-circle" class="w-4 h-4"></i>
+              <span>Save & Connect to Firebase</span>
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- FLOATING SENSOR TUNING SANDBOX DOCK -->
+  <div id="sandbox-dock" class="fixed bottom-6 right-6 z-40">
+    <button onclick="toggleSandbox()" class="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-xs shadow-2xl shadow-cyan-500/30 border border-cyan-400/40 flex items-center gap-2 transform hover:scale-105 transition-all">
+      <i data-lucide="sliders" class="w-4 h-4 text-cyan-200"></i>
+      <span>🧪 Live Sensor Sandbox</span>
+    </button>
+  </div>
+
+  <!-- SENSOR TUNING SANDBOX DRAWER / MODAL -->
+  <div id="sandbox-drawer" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-2xl rounded-3xl p-6 border border-cyan-500/30 shadow-2xl space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-purple-500/20 text-cyan-300 border border-cyan-500/30">
+            <i data-lucide="flask-conical" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Interactive Sensor Testing Sandbox</h3>
+            <p class="text-xs text-slate-400">Drag sliders to test instant dashboard reactions and automated relay triggers</p>
+          </div>
+        </div>
+        <button onclick="toggleSandbox()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Quick Preset Scenarios -->
+      <div>
+        <span class="text-[11px] font-bold text-slate-300 uppercase tracking-wider block mb-2">Simulate Disaster / Emergency Scenarios:</span>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button onclick="applySandboxPreset('optimal')" class="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold text-center transition-all">
+            🟢 Optimal Morning
+          </button>
+          <button onclick="applySandboxPreset('low_do')" class="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-semibold text-center transition-all">
+            🚨 DO Crash (&lt; 3.2)
+          </button>
+          <button onclick="applySandboxPreset('high_ammonia')" class="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold text-center transition-all">
+            ☠️ Toxic Ammonia
+          </button>
+          <button onclick="applySandboxPreset('heatwave')" class="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold text-center transition-all">
+            ☀️ Heatwave (34°C)
+          </button>
+        </div>
+      </div>
+
+      <!-- 6 Sliders Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80">
+        <!-- DO Slider -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-slate-300">Dissolved Oxygen (DO)</span>
+            <span id="sb-val-do" class="font-mono text-cyan-400 font-bold">6.2 mg/L</span>
+          </div>
+          <input type="range" id="sb-slider-do" min="1.0" max="12.0" step="0.1" value="6.2" oninput="onSandboxSliderChange()" class="w-full">
+        </div>
+
+        <!-- pH Slider -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-slate-300">pH Level</span>
+            <span id="sb-val-ph" class="font-mono text-purple-400 font-bold">7.8</span>
+          </div>
+          <input type="range" id="sb-slider-ph" min="5.5" max="10.0" step="0.1" value="7.8" oninput="onSandboxSliderChange()" class="w-full">
+        </div>
+
+        <!-- Salinity Slider -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-slate-300">Salinity</span>
+            <span id="sb-val-salinity" class="font-mono text-blue-400 font-bold">18.5 ppt</span>
+          </div>
+          <input type="range" id="sb-slider-salinity" min="5.0" max="35.0" step="0.5" value="18.5" oninput="onSandboxSliderChange()" class="w-full">
+        </div>
+
+        <!-- Temperature Slider -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-slate-300">Water Temperature</span>
+            <span id="sb-val-temp" class="font-mono text-amber-400 font-bold">28.4 °C</span>
+          </div>
+          <input type="range" id="sb-slider-temp" min="18.0" max="38.0" step="0.5" value="28.4" oninput="onSandboxSliderChange()" class="w-full">
+        </div>
+
+        <!-- Ammonia Slider -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-slate-300">Ammonia (TAN)</span>
+            <span id="sb-val-ammonia" class="font-mono text-rose-400 font-bold">0.035 mg/L</span>
+          </div>
+          <input type="range" id="sb-slider-ammonia" min="0.00" max="0.40" step="0.005" value="0.035" oninput="onSandboxSliderChange()" class="w-full">
+        </div>
+
+        <!-- Hardness Slider -->
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1">
+            <span class="font-semibold text-slate-300">Total Hardness</span>
+            <span id="sb-val-hardness" class="font-mono text-teal-400 font-bold">195 mg/L</span>
+          </div>
+          <input type="range" id="sb-slider-hardness" min="50" max="450" step="5" value="195" oninput="onSandboxSliderChange()" class="w-full">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2">
+        <span class="text-[11px] text-slate-400 font-mono flex items-center gap-1.5">
+          <i data-lucide="info" class="w-3.5 h-3.5 text-cyan-400"></i>
+          Sliders immediately update live pond model
+        </span>
+        <button onclick="commitSandboxReading()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 flex items-center gap-1.5 transition-all">
+          <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+          <span>Save & Push to Cloud RTDB</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARAMETER DIAGNOSTIC MODAL -->
+  <div id="param-detail-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-lg rounded-3xl p-6 border border-slate-700 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div id="modal-param-icon" class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <i data-lucide="wind" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 id="modal-param-title" class="text-base font-bold text-white">Parameter Diagnostics</h3>
+            <span id="modal-param-subtitle" class="text-xs text-slate-400 font-mono">Aquaculture Biological Criteria</span>
+          </div>
+        </div>
+        <button onclick="closeParamModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400">Current Reading:</span>
+          <span id="modal-param-value" class="text-xl font-extrabold font-mono text-white">--</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400">Safe Target Range:</span>
+          <span id="modal-param-range" class="text-xs font-mono text-cyan-300">--</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-slate-400">Biological Health Status:</span>
+          <span id="modal-param-status" class="badge-normal text-xs font-bold px-2 py-0.5 rounded-full">OPTIMAL</span>
+        </div>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Biological Importance for Shrimp:</h4>
+        <p id="modal-param-importance" class="text-xs text-slate-400 leading-relaxed">--</p>
+      </div>
+
+      <div class="pt-2 border-t border-slate-800">
+        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">Automated Equipment Interlock Rule:</h4>
+        <p id="modal-param-rule" class="text-xs text-slate-400 font-mono leading-relaxed">--</p>
+      </div>
+
+      <div class="flex justify-end pt-2">
+        <button onclick="closeParamModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold">
+          Close Diagnostics
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API INSPECTOR MODAL -->
+  <div id="api-inspector-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-3xl rounded-3xl p-6 border border-cyan-500/30 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+            <i data-lucide="code" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white">Live Sensor API Explorer</h3>
+            <p class="text-xs text-slate-400">Inspect real-time JSON responses coming directly from the 4 sensors and ESP8266</p>
+          </div>
+        </div>
+        <button onclick="closeApiInspector()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Quick Route Selector -->
+      <div class="flex flex-wrap items-center justify-between gap-2 shrink-0">
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/30">GET</span>
+          <code class="text-cyan-300 font-mono text-xs bg-slate-900 px-2 py-1 rounded border border-slate-800">/api/sensors</code>
+        </div>
+        <div class="flex items-center gap-2">
+          <a href="/api/sensors" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold flex items-center gap-1 border border-slate-700">
+            <span>Raw JSON</span>
+            <i data-lucide="external-link" class="w-3 h-3"></i>
+          </a>
+          <a href="/docs" target="_blank" class="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center gap-1 border border-cyan-500/30">
+            <span>Swagger Docs</span>
+            <i data-lucide="book-open" class="w-3 h-3"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Live JSON Code Window -->
+      <div class="flex-1 overflow-auto rounded-2xl bg-slate-950 p-4 border border-slate-800/80 font-mono text-xs text-slate-200">
+        <pre id="api-inspector-json" class="whitespace-pre-wrap leading-relaxed">Loading live sensor data...</pre>
+      </div>
+
+      <!-- Footer with Curl Guide -->
+      <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs">
+        <span class="text-slate-400 font-mono">cURL: <code class="text-cyan-300">curl http://localhost:8000/api/sensors</code></span>
+        <button onclick="copySensorCurl()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold flex items-center gap-1 border border-slate-700">
+          <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          <span>Copy cURL</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script Modules -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
