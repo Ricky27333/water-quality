@@ -3,10 +3,10 @@
     "dissolvedOxygen": 6.1,
     "pH": 7.8,
     "salinity": 18.2,
-    "temperature": 29.5,
+    "temperature": 28.5,
     "ammonia": 0.02,
     "hardness": 180.0,
-    "timestamp": 1791364281944
+    "timestamp": 1793024284130
   },
   "history": [
     {
@@ -2249,6 +2249,24 @@
       "ammonia": 0.02,
       "hardness": 180.0,
       "timestamp": 1791364281944
+    },
+    {
+      "dissolvedOxygen": 6.1,
+      "pH": 7.8,
+      "salinity": 18.2,
+      "temperature": 28.5,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793023486574
+    },
+    {
+      "dissolvedOxygen": 6.1,
+      "pH": 7.8,
+      "salinity": 18.2,
+      "temperature": 28.5,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793024284130
     }
   ],
   "control": {
