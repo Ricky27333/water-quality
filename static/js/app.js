@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Setup periodic refresh & stale watchdog
   setInterval(checkStaleAndTick, 1000);
-  setInterval(fetchPondCurrent, 2500); // Live sync from ESP32 API
+  setInterval(fetchPondCurrent, 1000); // Ultra-fast live sync from ESP32 API (1s latency!)
 
   // Initialize Trend Chart
   initTrendChart();
@@ -406,7 +406,7 @@ function updateLiveDashboard() {
     if (!isOnline) {
       healthBadgeEl.textContent = 'SYSTEM OFFLINE';
       healthBadgeEl.className = 'badge-critical text-[11px] font-bold px-2 py-0.5 rounded-full animate-pulse';
-      healthDescEl.textContent = 'ESP8266 Hardware Node is offline or disconnected. Live values zeroed out (000) for safety.';
+      healthDescEl.textContent = 'ESP32 Hardware Node is offline or disconnected. Live values zeroed out (000) for safety.';
     } else if (healthScore >= 85) {
       healthBadgeEl.textContent = 'OPTIMAL';
       healthBadgeEl.className = 'badge-normal text-[11px] font-bold px-2 py-0.5 rounded-full';
@@ -1059,6 +1059,25 @@ async function saveThresholdSettings() {
 
   await sendSettingsUpdate(updated);
   showToast('Settings saved to /pond/settings and server!', 'success');
+}
+
+async function sendSettingsUpdate(updated) {
+  try {
+    const res = await fetch('/api/pond/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (!res.ok) throw new Error('Failed to update settings');
+    const json = await res.json();
+    if (json.settings) {
+      appState.settings = json.settings;
+      populateSettingsInputs();
+    }
+  } catch (err) {
+    console.error('Error saving settings to API:', err);
+    showToast('Failed to save settings on server', 'error');
+  }
 }
 
 async function resetThresholdsToDefaults() {

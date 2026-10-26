@@ -165,7 +165,7 @@
           </button>
 
           <!-- Hardware Disconnect Simulator Button -->
-          <button onclick="toggleHardwareOffline()" id="btn-hw-disconnect" class="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 transition-all shadow-sm" title="Simulate ESP8266 Hardware disconnect for demo">
+          <button onclick="toggleHardwareOffline()" id="btn-hw-disconnect" class="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 transition-all shadow-sm" title="Simulate ESP32 Hardware disconnect for demo">
             <i data-lucide="power" id="hw-toggle-icon" class="w-3.5 h-3.5 text-rose-400"></i>
             <span id="hw-toggle-btn-text">Test Disconnect (000)</span>
           </button>
@@ -185,7 +185,7 @@
           <!-- Connection Status Pill -->
           <div id="connection-status-pill" class="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
             <span id="connection-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span id="connection-text">ESP8266 Synced</span>
+            <span id="connection-text">ESP32 Synced</span>
           </div>
 
           <!-- Last Updated Indicator -->
@@ -1219,7 +1219,7 @@
           </div>
           <div>
             <h3 class="text-base font-bold text-white">Live Sensor API Explorer</h3>
-            <p class="text-xs text-slate-400">Inspect real-time JSON responses coming directly from the 4 sensors and ESP8266</p>
+            <p class="text-xs text-slate-400">Inspect real-time JSON responses coming directly from the 4 sensors and ESP32</p>
           </div>
         </div>
         <button onclick="closeApiInspector()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">

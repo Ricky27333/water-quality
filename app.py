@@ -798,8 +798,101 @@ def reset_settings():
     save_persisted_data()
     return {"status": "ok", "settings": pond_state["settings"]}
 
-# API Directory & ESP8266 Integration Documentation
-@app.get("/api/esp8266/docs", summary="ESP8266 Integration Guide & Endpoints")
+@app.post("/api/pond/current", summary="Sandbox Telemetry Injection")
+async def post_pond_current(request: Request):
+    """Allows manual sensor testing / sandbox values to be pushed to pond state."""
+    data = await request.json()
+    temp = float(data.get("temperature", 28.0))
+    ph = float(data.get("pH", 7.8))
+    sal = float(data.get("salinity", 18.0))
+    do_val = float(data.get("dissolvedOxygen", 6.0))
+    amm = float(data.get("ammonia", 0.02))
+    hard = float(data.get("hardness", 180.0))
+    
+    now_ms = int(time.time() * 1000)
+    reading = {
+        "dissolvedOxygen": round(do_val, 2),
+        "pH": round(ph, 2),
+        "salinity": round(sal, 1),
+        "temperature": round(temp, 1),
+        "ammonia": round(amm, 3),
+        "hardness": round(hard, 1),
+        "timestamp": now_ms
+    }
+    pond_state["current"] = reading
+    pond_state["history"].append(reading)
+    if len(pond_state["history"]) > 1000:
+        pond_state["history"] = pond_state["history"][-1000:]
+        
+    hardware_health["lastHeartbeat"] = time.time()
+    hardware_health["isOnline"] = True
+    hardware_health["manualOfflineOverride"] = False
+    
+    check_thresholds(reading)
+    update_turbine_automation()
+    save_persisted_data()
+    return {"status": "ok", "reading": reading, "control": pond_state["control"]}
+
+@app.post("/api/pond/alerts/simulate", summary="Simulate an alert violation")
+def simulate_alert(parameter: str = "dissolvedOxygen", level: str = "critical"):
+    param_meta = pond_state["settings"].get(parameter, {"label": parameter, "unit": "", "min": 4.0, "max": 8.0})
+    unit = param_meta.get("unit", "")
+    label = param_meta.get("label", parameter)
+    p_min = param_meta.get("min", 4.0)
+    p_max = param_meta.get("max", 8.0)
+
+    val = round(p_min * 0.6, 2) if level == "critical" else round(p_min * 0.85, 2)
+    now_ms = int(time.time() * 1000)
+    alert_entry = {
+        "id": f"sim_alt_{now_ms}",
+        "parameter": parameter,
+        "label": label,
+        "value": val,
+        "unit": unit,
+        "threshold": f"{p_min} - {p_max}",
+        "level": level,
+        "message": f"[SIMULATION] {label} breach detected: {val} {unit} (Safe: {p_min} - {p_max} {unit})",
+        "timestamp": now_ms
+    }
+    pond_state.setdefault("alerts", []).insert(0, alert_entry)
+    if len(pond_state["alerts"]) > 100:
+        pond_state["alerts"].pop()
+    save_persisted_data()
+    return {"status": "ok", "alert": alert_entry}
+
+# Simulation toggle
+simulation_active = False
+
+@app.post("/api/simulator/toggle", summary="Toggle background telemetry simulation")
+def toggle_simulator():
+    global simulation_active
+    simulation_active = not simulation_active
+    return {"status": "ok", "simulationMode": simulation_active}
+
+@app.post("/api/config", summary="Save client cloud configuration")
+async def save_config(request: Request):
+    try:
+        cfg = await request.json()
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(cfg, f, indent=2)
+        return {"status": "ok", "config": cfg}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/config", summary="Get client cloud configuration")
+def get_config():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"simulationMode": False}
+
+# API Directory & ESP32 Integration Documentation
+@app.get("/api/esp32/docs", summary="ESP32 Integration Guide & Endpoints")
+@app.get("/api/esp8266/docs", summary="ESP32 / ESP8266 Integration Guide & Endpoints")
 def get_esp8266_docs():
     return {
         "system": "Smart Shrimp Pond IoT Management System",

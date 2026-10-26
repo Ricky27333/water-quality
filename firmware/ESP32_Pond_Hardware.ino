@@ -229,8 +229,8 @@ void loop()
     controlTemperatureServo();
   }
 
-  // Wait 5 seconds before next cycle
-  delay(5000);
+  // High-speed telemetry cycle: wait 1.5 seconds for < 2.0s real-time latency
+  delay(1500);
 }
 
 // =====================================================

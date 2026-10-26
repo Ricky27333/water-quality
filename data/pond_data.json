@@ -1,12 +1,12 @@
 {
   "current": {
-    "dissolvedOxygen": 6.0,
-    "pH": 7.85,
-    "salinity": 15.0,
-    "temperature": 0.0,
-    "ammonia": 0.02,
-    "hardness": 180.0,
-    "timestamp": 1793028636598
+    "dissolvedOxygen": 3.5,
+    "pH": 7.6,
+    "salinity": 20.0,
+    "temperature": 31.0,
+    "ammonia": 0.05,
+    "hardness": 210.0,
+    "timestamp": 1793030179288
   },
   "history": [
     {
@@ -2276,107 +2276,48 @@
       "ammonia": 0.02,
       "hardness": 180.0,
       "timestamp": 1793028636598
+    },
+    {
+      "dissolvedOxygen": 6.2,
+      "pH": 7.8,
+      "salinity": 18.2,
+      "temperature": 29.5,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793030179120
+    },
+    {
+      "dissolvedOxygen": 3.5,
+      "pH": 7.6,
+      "salinity": 20.0,
+      "temperature": 31.0,
+      "ammonia": 0.05,
+      "hardness": 210.0,
+      "timestamp": 1793030179288
     }
   ],
   "control": {
     "aerator": "ON",
-    "oxygenTurbine": "OFF",
+    "oxygenTurbine": "AUTO",
     "waterPump": "AUTO",
     "aeratorActive": true,
-    "oxygenTurbineActive": false,
+    "oxygenTurbineActive": true,
     "waterPumpActive": false,
-    "lastChanged": 1793028636644,
-    "waterTurbineActive": true,
-    "waterTurbine": "ON"
+    "lastChanged": 1793030179192,
+    "waterTurbineActive": false,
+    "waterTurbine": "AUTO"
   },
   "alerts": [
     {
-      "id": "alt_1790174981752",
+      "id": "alt_1793030179288",
       "parameter": "dissolvedOxygen",
       "label": "Dissolved Oxygen",
-      "value": 3.4,
+      "value": 3.5,
       "unit": "mg/L",
       "threshold": "4.0 - 8.0",
       "level": "warning",
-      "message": "Dissolved Oxygen is low: 3.4 mg/L (Target: 4.0 - 8.0 mg/L)",
-      "timestamp": 1790174981752
-    },
-    {
-      "id": "alt_1790155695457_770",
-      "parameter": "dissolvedOxygen",
-      "label": "Dissolved Oxygen",
-      "value": 3.4,
-      "unit": "mg/L",
-      "threshold": "4.0 - 8.0",
-      "level": "warning",
-      "message": "Dissolved Oxygen is low: 3.4 mg/L (Min: 4.0 mg/L)",
-      "timestamp": 1790155695457
-    },
-    {
-      "id": "alt_1790155097494_169",
-      "parameter": "dissolvedOxygen",
-      "label": "Dissolved Oxygen",
-      "value": 3.2,
-      "unit": "mg/L",
-      "threshold": "4.0 - 8.0",
-      "level": "warning",
-      "message": "Dissolved Oxygen is low: 3.2 mg/L (Min: 4.0 mg/L)",
-      "timestamp": 1790155097494
-    },
-    {
-      "id": "alt_1789547884509_468",
-      "parameter": "ammonia",
-      "label": "Ammonia (TAN)",
-      "value": 0.118,
-      "unit": "mg/L",
-      "threshold": "0.0 - 0.1",
-      "level": "warning",
-      "message": "Ammonia (TAN) is high: 0.118 mg/L (Max: 0.1 mg/L)",
-      "timestamp": 1789547884509
-    },
-    {
-      "id": "alt_1789547704266_509",
-      "parameter": "ammonia",
-      "label": "Ammonia (TAN)",
-      "value": 0.117,
-      "unit": "mg/L",
-      "threshold": "0.0 - 0.1",
-      "level": "warning",
-      "message": "Ammonia (TAN) is high: 0.117 mg/L (Max: 0.1 mg/L)",
-      "timestamp": 1789547704266
-    },
-    {
-      "id": "alt_1789547524087_563",
-      "parameter": "ammonia",
-      "label": "Ammonia (TAN)",
-      "value": 0.118,
-      "unit": "mg/L",
-      "threshold": "0.0 - 0.1",
-      "level": "warning",
-      "message": "Ammonia (TAN) is high: 0.118 mg/L (Max: 0.1 mg/L)",
-      "timestamp": 1789547524087
-    },
-    {
-      "id": "alt_1789547343873_773",
-      "parameter": "ammonia",
-      "label": "Ammonia (TAN)",
-      "value": 0.102,
-      "unit": "mg/L",
-      "threshold": "0.0 - 0.1",
-      "level": "warning",
-      "message": "Ammonia (TAN) is high: 0.102 mg/L (Max: 0.1 mg/L)",
-      "timestamp": 1789547343872
-    },
-    {
-      "id": "alt_sim_1789547029931",
-      "parameter": "dissolvedOxygen",
-      "label": "Dissolved Oxygen",
-      "value": 2.8,
-      "unit": "mg/L",
-      "threshold": "4.0 - 8.0",
-      "level": "critical",
-      "message": "Simulated CRITICAL Alert: Dissolved Oxygen breached threshold with value 2.8 mg/L",
-      "timestamp": 1789547029931
+      "message": "Dissolved Oxygen is low: 3.5 mg/L (Target: 4.0 - 8.0 mg/L)",
+      "timestamp": 1793030179288
     }
   ],
   "settings": {
@@ -2384,37 +2325,43 @@
       "min": 4.0,
       "max": 8.0,
       "unit": "mg/L",
-      "label": "Dissolved Oxygen"
+      "label": "Dissolved Oxygen",
+      "pin": "ESP32 (GPIO 34 / Est)"
     },
     "pH": {
       "min": 7.5,
       "max": 8.5,
       "unit": "",
-      "label": "pH Level"
+      "label": "pH Level",
+      "pin": "ESP32 (GPIO 34)"
     },
     "salinity": {
       "min": 10.0,
       "max": 25.0,
       "unit": "ppt",
-      "label": "Salinity"
+      "label": "Salinity",
+      "pin": "ESP32 (GPIO 35)"
     },
     "temperature": {
       "min": 26.0,
       "max": 32.0,
       "unit": "\u00b0C",
-      "label": "Temperature"
+      "label": "Water Temperature",
+      "pin": "ESP32 (GPIO 4)"
     },
     "ammonia": {
       "min": 0.0,
       "max": 0.1,
       "unit": "mg/L",
-      "label": "Ammonia (TAN)"
+      "label": "Ammonia (TAN)",
+      "pin": "Auxiliary"
     },
     "hardness": {
       "min": 100.0,
       "max": 300.0,
       "unit": "mg/L",
-      "label": "Total Hardness"
+      "label": "Total Hardness",
+      "pin": "Auxiliary"
     }
   }
 }
