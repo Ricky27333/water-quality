@@ -1,5 +1,6 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ESP32Servo.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -15,9 +16,9 @@ const char* WIFI_PASSWORD = "00121212";
 // API ENDPOINT
 // =====================================================
 
-// Your PC's current IP address on mobile hotspot "Ricky" is 10.39.23.68
-// (Once deployed to Render, change this to your Render URL: https://your-app.onrender.com/api/esp32/telemetry)
-const char* API_ENDPOINT = "http://10.39.23.68:8000/api/esp32/telemetry";
+// Live Public Tunnel Endpoint: Bypasses mobile hotspot AP-isolation & Windows firewall completely!
+// (When deployed to Render, change to: https://your-app.onrender.com/api/esp32/telemetry)
+const char* API_ENDPOINT = "http://aquasmart-pond.loca.lt/api/esp32/telemetry";
 
 // =====================================================
 // ESP32 PIN CONNECTIONS
@@ -542,14 +543,24 @@ bool sendDataToAPI()
 
   HTTPClient http;
 
-  http.begin(API_ENDPOINT);
-  http.setTimeout(1200); // 1.2s rapid industrial timeout - prevents blocking or lagging
+  if (String(API_ENDPOINT).startsWith("https://"))
+  {
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure(); // Allows connecting to HTTPS Render cloud without SSL errors
+    http.begin(secureClient, API_ENDPOINT);
+  }
+  else
+  {
+    WiFiClient standardClient;
+    http.begin(standardClient, API_ENDPOINT);
+  }
+
+  http.setTimeout(1800); // 1.8s timeout
   http.setReuse(true);   // HTTP 1.1 keep-alive connection reuse
 
-  http.addHeader(
-    "Content-Type",
-    "application/json"
-  );
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Bypass-Tunnel-Reminder", "true");
+  http.addHeader("User-Agent", "ESP32");
 
   // ---------------------------------------------------
   // CREATE JSON
