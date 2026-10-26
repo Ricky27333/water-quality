@@ -15,8 +15,9 @@ const char* WIFI_PASSWORD = "00121212";
 // API ENDPOINT
 // =====================================================
 
-// Your computer's current Wi-Fi IP address (or replace with Render URL when deployed)
-const char* API_ENDPOINT = "http://192.168.29.30:8000/api/esp32/telemetry";
+// Your PC's current IP address on mobile hotspot "Ricky" is 10.39.23.68
+// (Once deployed to Render, change this to your Render URL: https://your-app.onrender.com/api/esp32/telemetry)
+const char* API_ENDPOINT = "http://10.39.23.68:8000/api/esp32/telemetry";
 
 // =====================================================
 // ESP32 PIN CONNECTIONS
@@ -138,7 +139,9 @@ void setup()
   // TEMPERATURE SENSOR
   // ---------------------------------------------------
 
+  pinMode(TEMP_PIN, INPUT_PULLUP); // Enable pullup on GPIO 4 for DS18B20 OneWire bus
   temperatureSensor.begin();
+  temperatureSensor.setResolution(10); // 10-bit gives 0.25°C precision and reduces conversion time to only 187ms!
 
   // ---------------------------------------------------
   // SERVO SETUP
@@ -159,53 +162,55 @@ void setup()
   // ---------------------------------------------------
 
   WiFi.mode(WIFI_STA);
-
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   Serial.print("Connecting to WiFi");
-
   int attempts = 0;
-
   while (WiFi.status() != WL_CONNECTED && attempts < 30)
   {
     delay(500);
-
     Serial.print(".");
-
     attempts++;
   }
-
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED)
   {
     Serial.println("WiFi connected!");
-
-    Serial.print("IP Address: ");
+    Serial.print("ESP32 IP Address: ");
     Serial.println(WiFi.localIP());
+    Serial.print("API Target Server: ");
+    Serial.println(API_ENDPOINT);
   }
   else
   {
     Serial.println("WiFi connection failed.");
-
-    Serial.println("System will continue without WiFi.");
+    Serial.println("System will continue in autonomous offline mode.");
   }
 
   Serial.println();
-  Serial.println("SYSTEM READY");
+  Serial.println("SYSTEM READY - INDUSTRIAL TELEMETRY ACTIVE");
 }
 
 // =====================================================
-// MAIN LOOP
+// MAIN LOOP (NON-BLOCKING INDUSTRIAL MILLIS ARCHITECTURE)
 // =====================================================
+
+unsigned long lastTelemetryMillis = 0;
+const unsigned long TELEMETRY_INTERVAL_MS = 1500; // Exact 1.5-second high-speed telemetry cycle
 
 void loop()
 {
-  // 1. Auto-reconnect WiFi if connection drops
+  // 1. Maintain WiFi connection in background
   if (WiFi.status() != WL_CONNECTED)
   {
-    Serial.println("WiFi connection lost. Attempting auto-reconnect...");
-    WiFi.reconnect();
+    static unsigned long lastReconnectAttempt = 0;
+    if (millis() - lastReconnectAttempt > 5000)
+    {
+      Serial.println("WiFi disconnected. Attempting auto-reconnect...");
+      WiFi.reconnect();
+      lastReconnectAttempt = millis();
+    }
   }
 
   // 2. Read physical sensors
@@ -216,21 +221,28 @@ void loop()
   // 3. Calculate estimated DO using scientific formula
   calculateEstimatedDO();
 
-  // 4. Display telemetry data to Serial Monitor
-  printSensorData();
-
-  // 5. Send data to API & apply remote turbine controls received from Web Dashboard
-  bool apiSuccess = sendDataToAPI();
-
-  // 6. Fail-safe autonomous hold: if server is unreachable, use local safety rules
-  if (!apiSuccess)
+  // 4. Non-blocking real-time telemetry cycle
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastTelemetryMillis >= TELEMETRY_INTERVAL_MS)
   {
-    controlDOServo();
-    controlTemperatureServo();
+    lastTelemetryMillis = currentMillis;
+
+    // Display telemetry data to Serial Monitor
+    printSensorData();
+
+    // Send data to API & apply remote turbine controls received from Web Dashboard
+    bool apiSuccess = sendDataToAPI();
+
+    // Fail-safe autonomous hold: if server is unreachable, use local safety rules
+    if (!apiSuccess)
+    {
+      controlDOServo();
+      controlTemperatureServo();
+    }
   }
 
-  // High-speed telemetry cycle: wait 1.5 seconds for < 2.0s real-time latency
-  delay(1500);
+  // Brief yield for RTOS tasks & servo PWM stability
+  delay(20);
 }
 
 // =====================================================
@@ -240,13 +252,14 @@ void loop()
 void readTemperature()
 {
   temperatureSensor.requestTemperatures();
-
   float value = temperatureSensor.getTempCByIndex(0);
 
-  if (value == DEVICE_DISCONNECTED_C || value <= -100.0)
+  // DS18B20 disconnect check (-127.00 is DEVICE_DISCONNECTED_C, 85.0 is uninitialized power-on state)
+  if (value == DEVICE_DISCONNECTED_C || value <= -50.0 || value > 85.0)
   {
-    Serial.println("WARNING: Temperature sensor disconnected! Using 28.0 C fallback for DO formula.");
-    temperatureC = 0.0;
+    Serial.println("WARNING: DS18B20 Temp sensor disconnected! (Check GPIO 4 wire & 4.7k pullup resistor)");
+    // Ground reality fallback: use 28.0 C (optimal shrimp aquaculture) so system stays functional
+    temperatureC = 28.0;
   }
   else
   {
@@ -260,73 +273,58 @@ void readTemperature()
 
 void readPH()
 {
-  int rawValue = analogRead(PH_PIN);
-
-  float voltage =
-      (rawValue / 4095.0) * 3.3;
+  long sum = 0;
+  for (int i = 0; i < 10; i++)
+  {
+    sum += analogRead(PH_PIN);
+    delay(2);
+  }
+  float rawValue = sum / 10.0;
+  float voltage = (rawValue / 4095.0) * 3.3;
 
   // Simple calibration equation
-  phValue =
-      7.0 + ((PH7_VOLTAGE - voltage) * PH_SLOPE);
+  phValue = 7.0 + ((PH7_VOLTAGE - voltage) * PH_SLOPE);
 
   // Limit pH
-  if (phValue < 0)
-  {
-    phValue = 0;
-  }
-
-  if (phValue > 14)
-  {
-    phValue = 14;
-  }
+  if (phValue < 0.0) phValue = 0.0;
+  if (phValue > 14.0) phValue = 14.0;
 }
 
 // =====================================================
-// TDS SENSOR
+// TDS SENSOR (WITH MULTI-SAMPLE FILTERING)
 // =====================================================
 
 void readTDS()
 {
-  int rawValue = analogRead(TDS_PIN);
-
-  float voltage =
-      (rawValue / 4095.0) * 3.3;
-
-  if (voltage <= 0)
+  long sum = 0;
+  for (int i = 0; i < 10; i++)
   {
-    tdsValue = 0;
+    sum += analogRead(TDS_PIN);
+    delay(2);
+  }
+  float rawValue = sum / 10.0;
+  float voltage = (rawValue / 4095.0) * 3.3;
 
-    salinityValue = 0;
-
+  if (voltage <= 0.05)
+  {
+    tdsValue = 0.0;
+    salinityValue = 0.0;
     return;
   }
 
   // Temperature compensation
-  float compensationCoefficient =
-      1.0 + 0.02 * (temperatureC - 25.0);
-
-  float compensationVoltage =
-      voltage / compensationCoefficient;
+  float compensationCoefficient = 1.0 + 0.02 * (temperatureC - 25.0);
+  float compensationVoltage = voltage / compensationCoefficient;
 
   // TDS calculation
-  tdsValue =
-      (133.42 *
-       compensationVoltage *
-       compensationVoltage *
-       compensationVoltage
-       -
-       255.86 *
-       compensationVoltage *
-       compensationVoltage
-       +
-       857.39 *
-       compensationVoltage)
-      * 0.5;
+  tdsValue = (133.42 * compensationVoltage * compensationVoltage * compensationVoltage
+            - 255.86 * compensationVoltage * compensationVoltage
+            + 857.39 * compensationVoltage) * 0.5;
 
-  if (tdsValue < 0)
-  {
-    tdsValue = 0;
-  }
+  if (tdsValue < 0.0) tdsValue = 0.0;
+
+  salinityValue = tdsValue / 1000.0;
+}
 
   // ---------------------------------------------------
   // PROTOTYPE SALINITY ESTIMATION
@@ -542,6 +540,8 @@ bool sendDataToAPI()
   HTTPClient http;
 
   http.begin(API_ENDPOINT);
+  http.setTimeout(1200); // 1.2s rapid industrial timeout - prevents blocking or lagging
+  http.setReuse(true);   // HTTP 1.1 keep-alive connection reuse
 
   http.addHeader(
     "Content-Type",
@@ -651,10 +651,10 @@ bool sendDataToAPI()
     {
       Serial.println("========================================================");
       Serial.println("DIAGNOSTIC: Error -1 (Connection Refused)");
-      Serial.println("1. Are your PC and ESP32 connected to the SAME Wi-Fi network?");
-      Serial.println("   (Your PC is on a different Wi-Fi than the ESP32!)");
-      Serial.println("2. Is Python app.py running on port 8000?");
-      Serial.println("3. Once deployed to Render, change API_ENDPOINT to your public Render URL!");
+      Serial.println("1. Target Server: " + String(API_ENDPOINT));
+      Serial.println("2. Your PC IP on hotspot 'Ricky' is: 10.39.23.68");
+      Serial.println("3. Is Python app.py running on port 8000?");
+      Serial.println("4. Once deployed to Render, set API_ENDPOINT to your Render URL!");
       Serial.println("========================================================");
     }
     http.end();

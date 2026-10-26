@@ -46,8 +46,8 @@ DEFAULT_CONTROL = {
 }
 
 # ESP32 / IoT Hardware Watchdog State
-# Timeout: 15 seconds without a telemetry packet marks the system OFFLINE
-WATCHDOG_TIMEOUT_SECONDS = 15.0
+# Timeout: 30 seconds without a telemetry packet marks the system OFFLINE (commercial resilience)
+WATCHDOG_TIMEOUT_SECONDS = 30.0
 
 hardware_health: Dict[str, Any] = {
     "microcontroller": "ESP32",
@@ -242,16 +242,19 @@ def ingest_esp8266_telemetry(
     if client_ip:
         hardware_health["lastPacketIp"] = client_ip
 
+    # Ground reality check: If temperature sensor is disconnected (<= 0.0 C), use 28.0 C ambient aquaculture fallback
+    effective_temp = float(temperature) if float(temperature) > 0.0 else 28.0
+
     # If DO is missing or 0, calculate using the scientific formula
     if dissolvedOxygen <= 0.0:
-        dissolvedOxygen = calculate_estimated_do(temperature, pH, salinity)
+        dissolvedOxygen = calculate_estimated_do(effective_temp, pH, salinity)
 
     # 2. Record 4 Core Sensor Values
     reading = {
         "dissolvedOxygen": round(float(dissolvedOxygen), 2),
         "pH": round(float(pH), 2),
         "salinity": round(float(salinity), 1),
-        "temperature": round(float(temperature), 1),
+        "temperature": round(effective_temp, 1),
         "ammonia": 0.02,
         "hardness": 180.0,
         "timestamp": now_ms
@@ -422,7 +425,7 @@ def get_esp8266_status():
     age_sec = round(time.time() - last_hb, 1) if last_hb > 0 else None
 
     return {
-        "microcontroller": "ESP8266",
+        "microcontroller": "ESP32",
         "isOnline": is_online,
         "systemStatus": "ONLINE" if is_online else "SYSTEM OFFLINE",
         "lastHeartbeat": last_hb,

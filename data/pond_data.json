@@ -1,12 +1,12 @@
 {
   "current": {
-    "dissolvedOxygen": 3.5,
-    "pH": 7.6,
-    "salinity": 20.0,
-    "temperature": 31.0,
-    "ammonia": 0.05,
-    "hardness": 210.0,
-    "timestamp": 1793030179288
+    "dissolvedOxygen": 4.01,
+    "pH": 4.2,
+    "salinity": 16.4,
+    "temperature": 28.0,
+    "ammonia": 0.02,
+    "hardness": 180.0,
+    "timestamp": 1793031945842
   },
   "history": [
     {
@@ -2294,6 +2294,15 @@
       "ammonia": 0.05,
       "hardness": 210.0,
       "timestamp": 1793030179288
+    },
+    {
+      "dissolvedOxygen": 4.01,
+      "pH": 4.2,
+      "salinity": 16.4,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793031945842
     }
   ],
   "control": {
@@ -2301,13 +2310,24 @@
     "oxygenTurbine": "AUTO",
     "waterPump": "AUTO",
     "aeratorActive": true,
-    "oxygenTurbineActive": true,
+    "oxygenTurbineActive": false,
     "waterPumpActive": false,
     "lastChanged": 1793030179192,
-    "waterTurbineActive": false,
+    "waterTurbineActive": true,
     "waterTurbine": "AUTO"
   },
   "alerts": [
+    {
+      "id": "alt_1793031945842",
+      "parameter": "pH",
+      "label": "pH Level",
+      "value": 4.2,
+      "unit": "",
+      "threshold": "7.5 - 8.5",
+      "level": "critical",
+      "message": "pH Level is low: 4.2  (Target: 7.5 - 8.5 )",
+      "timestamp": 1793031945842
+    },
     {
       "id": "alt_1793030179288",
       "parameter": "dissolvedOxygen",
