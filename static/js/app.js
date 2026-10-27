@@ -583,6 +583,57 @@ function updateQuickActuators() {
   if (sAerator) sAerator.textContent = doText;
   if (sWater) sWater.textContent = waterText;
   if (sPump) sPump.textContent = waterText;
+
+  // Update Dual Motor Dashboard Quick Buttons
+  const updateDashMotorUI = (num, mode, active, defaultColor) => {
+    const btnOn = document.getElementById(`dash-btn-m${num}-on`);
+    const btnOff = document.getElementById(`dash-btn-m${num}-off`);
+    const btnAuto = document.getElementById(`dash-btn-m${num}-auto`);
+    const badge = document.getElementById(`quick-motor${num}-badge`);
+    const icon = document.getElementById(`quick-motor${num}-icon`);
+    const container = document.getElementById(`quick-motor${num}-icon-container`);
+
+    const modeUpper = (mode || 'AUTO').toUpperCase();
+
+    if (btnOn) {
+      btnOn.className = (modeUpper === 'ON')
+        ? 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400'
+        : 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 text-slate-400 hover:text-emerald-300 hover:bg-emerald-500/10';
+    }
+    if (btnOff) {
+      btnOff.className = (modeUpper === 'OFF')
+        ? 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 bg-rose-500 text-white shadow-lg shadow-rose-500/30 ring-2 ring-rose-400'
+        : 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 text-slate-400 hover:text-rose-300 hover:bg-rose-500/10';
+    }
+    if (btnAuto) {
+      btnAuto.className = (modeUpper === 'AUTO')
+        ? 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 shadow-sm'
+        : 'px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-cyan-300 hover:bg-cyan-500/10';
+    }
+
+    if (badge) {
+      if (active) {
+        badge.textContent = `RUNNING (${modeUpper})`;
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse';
+      } else {
+        badge.textContent = modeUpper === 'OFF' ? 'STOPPED (OFF)' : (modeUpper === 'AUTO' ? 'AUTO (STANDBY)' : 'IDLE');
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-slate-400 border border-slate-700';
+      }
+    }
+
+    if (icon && container) {
+      if (active) {
+        icon.classList.add('animate-spin-slow');
+        container.className = `w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/40 shadow-lg shadow-emerald-500/10`;
+      } else {
+        icon.classList.remove('animate-spin-slow');
+        container.className = `w-12 h-12 rounded-2xl bg-${defaultColor}-500/15 text-${defaultColor}-400 flex items-center justify-center border border-${defaultColor}-500/30`;
+      }
+    }
+  };
+
+  updateDashMotorUI(1, ctrl.oxygenTurbine, ctrl.oxygenTurbineActive, 'cyan');
+  updateDashMotorUI(2, ctrl.waterTurbine, ctrl.waterTurbineActive, 'emerald');
 }
 
 // --- DEVICE CONTROL MODULE (2 TURBINES: DO TURBINE & WATER TURBINE) ---

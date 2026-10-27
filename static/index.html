@@ -261,6 +261,69 @@
           </div>
         </div>
 
+        <!-- DUAL TURBINE MOTORS LIVE CONTROL CONSOLE (DO TURBINE & WATER TURBINE) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- MOTOR 1: DISSOLVED OXYGEN TURBINE (GPIO 18 / SERVO 1) -->
+          <div class="glass-card rounded-2xl p-4 border border-cyan-500/30 bg-gradient-to-br from-cyan-950/30 to-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-cyan-500/5">
+            <div class="flex items-center gap-3">
+              <div id="quick-motor1-icon-container" class="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center border border-cyan-500/30 shrink-0">
+                <i data-lucide="wind" id="quick-motor1-icon" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-bold text-white">Motor 1: DO Turbine</h3>
+                  <span id="quick-motor1-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">STANDBY</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-mono mt-0.5">ESP32 GPIO 18 &bull; Aeration &amp; Oxygen Injection</p>
+              </div>
+            </div>
+            <!-- Direct ON / OFF / AUTO Buttons for Motor 1 -->
+            <div class="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800 shrink-0">
+              <button onclick="setActuatorMode('oxygenTurbine', 'ON')" id="dash-btn-m1-on" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 text-slate-400 hover:text-emerald-300 hover:bg-emerald-500/10">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span>TURN ON</span>
+              </button>
+              <button onclick="setActuatorMode('oxygenTurbine', 'OFF')" id="dash-btn-m1-off" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 text-slate-400 hover:text-rose-300 hover:bg-rose-500/10">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                <span>TURN OFF</span>
+              </button>
+              <button onclick="setActuatorMode('oxygenTurbine', 'AUTO')" id="dash-btn-m1-auto" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cyan-500/25 text-cyan-300 border border-cyan-500/40">
+                <span>AUTO</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- MOTOR 2: WATER CIRCULATION TURBINE (GPIO 19 / SERVO 2) -->
+          <div class="glass-card rounded-2xl p-4 border border-emerald-500/30 bg-gradient-to-br from-emerald-950/30 to-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg shadow-emerald-500/5">
+            <div class="flex items-center gap-3">
+              <div id="quick-motor2-icon-container" class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                <i data-lucide="waves" id="quick-motor2-icon" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-bold text-white">Motor 2: Water Turbine</h3>
+                  <span id="quick-motor2-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">STANDBY</span>
+                </div>
+                <p class="text-[11px] text-slate-400 font-mono mt-0.5">ESP32 GPIO 19 &bull; Thermal &amp; Salinity Circulation</p>
+              </div>
+            </div>
+            <!-- Direct ON / OFF / AUTO Buttons for Motor 2 -->
+            <div class="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800 shrink-0">
+              <button onclick="setActuatorMode('waterTurbine', 'ON')" id="dash-btn-m2-on" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 text-slate-400 hover:text-emerald-300 hover:bg-emerald-500/10">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span>TURN ON</span>
+              </button>
+              <button onclick="setActuatorMode('waterTurbine', 'OFF')" id="dash-btn-m2-off" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 text-slate-400 hover:text-rose-300 hover:bg-rose-500/10">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                <span>TURN OFF</span>
+              </button>
+              <button onclick="setActuatorMode('waterTurbine', 'AUTO')" id="dash-btn-m2-auto" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-cyan-500/25 text-cyan-300 border border-cyan-500/40">
+                <span>AUTO</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- INTERACTIVE POND PHYSICAL VISUALIZER & ECOSYSTEM DIGITAL TWIN -->
         <div class="pond-sim-container h-52 sm:h-60 p-4 flex flex-col justify-between relative shadow-2xl">
           <!-- Animated Water Surface Wave -->
