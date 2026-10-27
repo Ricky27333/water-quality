@@ -1,0 +1,156 @@
+{
+  "clientName": "Thunder Client",
+  "collectionName": "Smart Shrimp Pond API - ESP32",
+  "collectionId": "esp32-shrimp-pond-collection",
+  "dateExported": "2026-10-27",
+  "version": "1.1",
+  "folders": [
+    {
+      "name": "1. Telemetry & Sensors",
+      "folderId": "f-telemetry"
+    },
+    {
+      "name": "2. Turbines Actuator Control",
+      "folderId": "f-actuators"
+    },
+    {
+      "name": "3. Settings & Thresholds",
+      "folderId": "f-settings"
+    },
+    {
+      "name": "4. Alerts & Diagnostics",
+      "folderId": "f-alerts"
+    }
+  ],
+  "requests": [
+    {
+      "name": "POST ESP32 Telemetry (Ingest 4 Sensors)",
+      "folderId": "f-telemetry",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/esp32/telemetry",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"temperature\": 28.5,\n  \"ph\": 7.85,\n  \"tds\": 350.0,\n  \"salinity\": 18.2,\n  \"do\": 6.2,\n  \"water_quality\": \"OPTIMAL\",\n  \"oxygenTurbineActive\": false,\n  \"waterTurbineActive\": false\n}"
+      }
+    },
+    {
+      "name": "GET Dashboard Sensors (Live 4 Core Readings)",
+      "folderId": "f-telemetry",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/sensors",
+      "headers": []
+    },
+    {
+      "name": "GET All Pond Data (Dashboard Bundle)",
+      "folderId": "f-telemetry",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/pond/all",
+      "headers": []
+    },
+    {
+      "name": "GET ESP32 Actuators State Poll",
+      "folderId": "f-actuators",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/esp32/actuators",
+      "headers": []
+    },
+    {
+      "name": "POST Direct Turbines Control (ON / OFF / AUTO)",
+      "folderId": "f-actuators",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/pond/control",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"oxygenTurbine\": \"ON\",\n  \"waterTurbine\": \"AUTO\"\n}"
+      }
+    },
+    {
+      "name": "GET Hardware Connection Status & Latency",
+      "folderId": "f-telemetry",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/esp32/status",
+      "headers": []
+    },
+    {
+      "name": "GET Threshold Settings",
+      "folderId": "f-settings",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/pond/settings",
+      "headers": []
+    },
+    {
+      "name": "POST Update Safe Biological Thresholds",
+      "folderId": "f-settings",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/pond/settings",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"dissolvedOxygen\": {\"min\": 4.0, \"max\": 8.0},\n  \"temperature\": {\"min\": 26.0, \"max\": 32.0}\n}"
+      }
+    },
+    {
+      "name": "POST Reset Thresholds to Biological Default",
+      "folderId": "f-settings",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/pond/settings/reset",
+      "headers": []
+    },
+    {
+      "name": "GET Historical Trends Graph Data",
+      "folderId": "f-telemetry",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/pond/history?range=24h",
+      "headers": []
+    },
+    {
+      "name": "GET Real-Time Alerts Incident Log",
+      "folderId": "f-alerts",
+      "method": "GET",
+      "url": "http://127.0.0.1:8000/api/pond/alerts",
+      "headers": []
+    },
+    {
+      "name": "POST Trigger Simulated DO Critical Alert",
+      "folderId": "f-alerts",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/pond/alerts/simulate?parameter=dissolvedOxygen&level=critical",
+      "headers": []
+    },
+    {
+      "name": "POST Clear Alert Incidents Log",
+      "folderId": "f-alerts",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/pond/alerts/clear",
+      "headers": []
+    },
+    {
+      "name": "POST Sensor Sandbox Custom Values Injection",
+      "folderId": "f-telemetry",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/pond/current",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"temperature\": 29.2,\n  \"pH\": 7.8,\n  \"salinity\": 18.0,\n  \"dissolvedOxygen\": 5.9,\n  \"ammonia\": 0.02,\n  \"hardness\": 190.0\n}"
+      }
+    },
+    {
+      "name": "POST Viva Demo Disconnect Toggle (Triggers 000)",
+      "folderId": "f-telemetry",
+      "method": "POST",
+      "url": "http://127.0.0.1:8000/api/hardware/toggle-offline?force_offline=true",
+      "headers": []
+    }
+  ]
+}

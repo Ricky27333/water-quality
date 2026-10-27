@@ -1,12 +1,12 @@
 {
   "current": {
-    "dissolvedOxygen": 4.01,
-    "pH": 4.2,
-    "salinity": 16.4,
-    "temperature": 28.0,
-    "ammonia": 0.02,
-    "hardness": 180.0,
-    "timestamp": 1793031945842
+    "dissolvedOxygen": 5.8,
+    "pH": 7.9,
+    "salinity": 19.5,
+    "temperature": 29.0,
+    "ammonia": 0.03,
+    "hardness": 200.0,
+    "timestamp": 1793106640840
   },
   "history": [
     {
@@ -2303,6 +2303,447 @@
       "ammonia": 0.02,
       "hardness": 180.0,
       "timestamp": 1793031945842
+    },
+    {
+      "dissolvedOxygen": 6.2,
+      "pH": 7.8,
+      "salinity": 18.2,
+      "temperature": 28.5,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793034915655
+    },
+    {
+      "dissolvedOxygen": 6.2,
+      "pH": 7.8,
+      "salinity": 18.2,
+      "temperature": 28.5,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793035117266
+    },
+    {
+      "dissolvedOxygen": 4.74,
+      "pH": 4.2,
+      "salinity": 0.4,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793035982689
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793035986160
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793035989634
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793035993557
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793035998251
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036000181
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036003656
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036007130
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036010986
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036014465
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036018842
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036022317
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036026369
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036029844
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036032545
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036036176
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036040037
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036043511
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036046993
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036050463
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036053938
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036057417
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036061280
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036064752
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036068222
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036071702
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036075756
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036079217
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036083752
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.7,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036086454
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036089928
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036093403
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036096877
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036100348
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036105063
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036108531
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036112003
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036116638
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036119340
+    },
+    {
+      "dissolvedOxygen": 4.72,
+      "pH": 4.2,
+      "salinity": 0.8,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036122968
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036126059
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036129530
+    },
+    {
+      "dissolvedOxygen": 4.71,
+      "pH": 4.2,
+      "salinity": 0.9,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036133003
+    },
+    {
+      "dissolvedOxygen": 6.0,
+      "pH": 7.5,
+      "salinity": 18.0,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036190935
+    },
+    {
+      "dissolvedOxygen": 6.0,
+      "pH": 7.5,
+      "salinity": 18.0,
+      "temperature": 28.0,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793036777258
+    },
+    {
+      "dissolvedOxygen": 6.15,
+      "pH": 7.82,
+      "salinity": 18.2,
+      "temperature": 28.4,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793106640665
+    },
+    {
+      "dissolvedOxygen": 5.8,
+      "pH": 7.9,
+      "salinity": 19.5,
+      "temperature": 29.0,
+      "ammonia": 0.03,
+      "hardness": 200.0,
+      "timestamp": 1793106640840
     }
   ],
   "control": {
@@ -2312,34 +2753,11 @@
     "aeratorActive": true,
     "oxygenTurbineActive": false,
     "waterPumpActive": false,
-    "lastChanged": 1793030179192,
-    "waterTurbineActive": true,
+    "lastChanged": 1793106640731,
+    "waterTurbineActive": false,
     "waterTurbine": "AUTO"
   },
-  "alerts": [
-    {
-      "id": "alt_1793031945842",
-      "parameter": "pH",
-      "label": "pH Level",
-      "value": 4.2,
-      "unit": "",
-      "threshold": "7.5 - 8.5",
-      "level": "critical",
-      "message": "pH Level is low: 4.2  (Target: 7.5 - 8.5 )",
-      "timestamp": 1793031945842
-    },
-    {
-      "id": "alt_1793030179288",
-      "parameter": "dissolvedOxygen",
-      "label": "Dissolved Oxygen",
-      "value": 3.5,
-      "unit": "mg/L",
-      "threshold": "4.0 - 8.0",
-      "level": "warning",
-      "message": "Dissolved Oxygen is low: 3.5 mg/L (Target: 4.0 - 8.0 mg/L)",
-      "timestamp": 1793030179288
-    }
-  ],
+  "alerts": [],
   "settings": {
     "dissolvedOxygen": {
       "min": 4.0,
