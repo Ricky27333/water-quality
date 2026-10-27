@@ -133,6 +133,7 @@ void readTDS();
 void calculateEstimatedDO();
 void controlDOServo();
 void controlTemperatureServo();
+void updateTurbineContinuousRotation();
 String getWaterQualityStatus();
 void printSensorData();
 bool sendDataToAPI();
@@ -224,7 +225,70 @@ void setup()
 // =====================================================
 
 unsigned long lastTelemetryMillis = 0;
-const unsigned long TELEMETRY_INTERVAL_MS = 1500; // Exact 1.5-second high-speed telemetry cycle
+const unsigned long TELEMETRY_INTERVAL_MS = 800; // Ultra-fast 800ms telemetry cycle (sub-second remote motor response!)
+
+// =====================================================
+// CONTINUOUS TURBINE MOTOR ROTATION CONTROLLER
+// Rotates continuously while motor state is active (ON)
+// Parks at 0 degrees and stops immediately when OFF
+// =====================================================
+
+unsigned long lastTurbineMotionMillis = 0;
+int turbine1Angle = 0;
+int turbine1Direction = 15; // Sweep speed degrees per 30ms step
+int turbine2Angle = 0;
+int turbine2Direction = 15;
+
+void updateTurbineContinuousRotation()
+{
+  unsigned long now = millis();
+  if (now - lastTurbineMotionMillis >= 30) // Smooth 33 FPS continuous rotation loop
+  {
+    lastTurbineMotionMillis = now;
+
+    // --- TURBINE 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18) ---
+    if (servoDOState)
+    {
+      turbine1Angle += turbine1Direction;
+      if (turbine1Angle >= 180)
+      {
+        turbine1Angle = 180;
+        turbine1Direction = -15;
+      }
+      else if (turbine1Angle <= 0)
+      {
+        turbine1Angle = 0;
+        turbine1Direction = 15;
+      }
+      servoDO.write(turbine1Angle); // Continuously churns/rotates back and forth like a pond paddle wheel!
+    }
+    else
+    {
+      servoDO.write(0); // Park at 0° when STOPPED
+    }
+
+    // --- TURBINE 2: Water Circulation Turbine (Servo 2 / GPIO 19) ---
+    if (servoHeatState)
+    {
+      turbine2Angle += turbine2Direction;
+      if (turbine2Angle >= 180)
+      {
+        turbine2Angle = 180;
+        turbine2Direction = -15;
+      }
+      else if (turbine2Angle <= 0)
+      {
+        turbine2Angle = 0;
+        turbine2Direction = 15;
+      }
+      servoHeat.write(turbine2Angle); // Continuously churns/rotates!
+    }
+    else
+    {
+      servoHeat.write(0); // Park at 0° when STOPPED
+    }
+  }
+}
 
 void loop()
 {
@@ -240,15 +304,19 @@ void loop()
     }
   }
 
-  // 2. Read physical sensors
+  // 2. Continuous Turbine Motor Dynamic Motion Controller
+  // While turbine state is active (ON), rotates continuously until OFF button is clicked
+  updateTurbineContinuousRotation();
+
+  // 3. Read physical sensors
   readTemperature();
   readPH();
   readTDS();
 
-  // 3. Calculate estimated DO using scientific formula
+  // 4. Calculate estimated DO using scientific formula
   calculateEstimatedDO();
 
-  // 4. Non-blocking real-time telemetry cycle
+  // 5. Non-blocking real-time telemetry cycle (every 800ms)
   unsigned long currentMillis = millis();
   if (currentMillis - lastTelemetryMillis >= TELEMETRY_INTERVAL_MS)
   {
@@ -269,7 +337,7 @@ void loop()
   }
 
   // Brief yield for RTOS tasks & servo PWM stability
-  delay(20);
+  delay(15);
 }
 
 // =====================================================
