@@ -6,7 +6,7 @@
     "temperature": 29.0,
     "ammonia": 0.03,
     "hardness": 200.0,
-    "timestamp": 1793106640840
+    "timestamp": 1793110071117
   },
   "history": [
     {
@@ -2744,6 +2744,51 @@
       "ammonia": 0.03,
       "hardness": 200.0,
       "timestamp": 1793106640840
+    },
+    {
+      "dissolvedOxygen": 6.15,
+      "pH": 7.82,
+      "salinity": 18.2,
+      "temperature": 28.4,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793109217865
+    },
+    {
+      "dissolvedOxygen": 5.8,
+      "pH": 7.9,
+      "salinity": 19.5,
+      "temperature": 29.0,
+      "ammonia": 0.03,
+      "hardness": 200.0,
+      "timestamp": 1793109218079
+    },
+    {
+      "dissolvedOxygen": 6.2,
+      "pH": 7.8,
+      "salinity": 18.2,
+      "temperature": 28.5,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793109263973
+    },
+    {
+      "dissolvedOxygen": 6.15,
+      "pH": 7.82,
+      "salinity": 18.2,
+      "temperature": 28.4,
+      "ammonia": 0.02,
+      "hardness": 180.0,
+      "timestamp": 1793110070948
+    },
+    {
+      "dissolvedOxygen": 5.8,
+      "pH": 7.9,
+      "salinity": 19.5,
+      "temperature": 29.0,
+      "ammonia": 0.03,
+      "hardness": 200.0,
+      "timestamp": 1793110071117
     }
   ],
   "control": {
@@ -2753,7 +2798,7 @@
     "aeratorActive": true,
     "oxygenTurbineActive": false,
     "waterPumpActive": false,
-    "lastChanged": 1793106640731,
+    "lastChanged": 1793110070988,
     "waterTurbineActive": false,
     "waterTurbine": "AUTO"
   },

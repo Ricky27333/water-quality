@@ -8,7 +8,14 @@
 // =====================================================
 // WIFI SETTINGS
 // =====================================================
+// WIFI SETTINGS
+// =====================================================
 
+// Option A: Active Wi-Fi "3rd floor C1-5G" (PC IP: 192.168.29.30)
+// const char* WIFI_SSID = "3rd floor C1-5G";
+// const char* WIFI_PASSWORD = "your_wifi_password";
+
+// Option B: Mobile Hotspot "Ricky"
 const char* WIFI_SSID = "Ricky";
 const char* WIFI_PASSWORD = "00121212";
 
@@ -16,11 +23,14 @@ const char* WIFI_PASSWORD = "00121212";
 // API ENDPOINT
 // =====================================================
 
-// Direct Local Hotspot Server (PC IP on hotspot "Ricky", fast 20ms response!):
-const char* API_ENDPOINT = "http://10.39.23.68:8000/api/esp32/telemetry";
+// Active Local Server (PC IP on "3rd floor C1-5G"):
+const char* API_ENDPOINT = "http://192.168.29.30:8000/api/esp32/telemetry";
 
-// When deployed to Render, change to your Render public URL:
-// const char* API_ENDPOINT = "https://your-app.onrender.com/api/esp32/telemetry";
+// Mobile Hotspot Server (PC IP when on "Ricky"):
+// const char* API_ENDPOINT = "http://10.39.23.68:8000/api/esp32/telemetry";
+
+// Render Cloud Server (24/7 Live access anywhere):
+// const char* API_ENDPOINT = "https://your-service.onrender.com/api/esp32/telemetry";
 
 // =====================================================
 // ESP32 PIN CONNECTIONS

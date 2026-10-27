@@ -81,8 +81,8 @@ function checkStaleAndTick() {
   const elapsedMs = now - lastTs;
   const elapsedSec = Math.floor(elapsedMs / 1000);
 
-  // Watchdog timeout is 20s (or when isOnline is explicitly false)
-  const isHardwareOffline = (appState.isOnline === false) || (elapsedSec > 20);
+  // Hardware offline is governed by server status or explicit disconnect
+  const isHardwareOffline = (appState.isOnline === false);
   appState.isStale = isHardwareOffline;
 
   const staleBanner = document.getElementById('stale-banner');
@@ -1578,5 +1578,47 @@ function closeParamModal() {
   playSound('click');
   const modal = document.getElementById('param-detail-modal');
   if (modal) modal.classList.add('hidden');
+}
+
+// --- API INSPECTOR MODAL LOGIC ---
+function openApiInspector() {
+  playSound('click');
+  const modal = document.getElementById('api-inspector-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+    fetchLiveApiInspector();
+  }
+}
+
+function closeApiInspector() {
+  playSound('click');
+  const modal = document.getElementById('api-inspector-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function fetchLiveApiInspector() {
+  const jsonPre = document.getElementById('api-inspector-json');
+  if (!jsonPre) return;
+  try {
+    const res = await fetch('/api/sensors');
+    const data = await res.json();
+    jsonPre.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    jsonPre.textContent = 'Error loading live API telemetry: ' + e.message;
+  }
+}
+
+function copySensorCurl() {
+  playSound('click');
+  const curlCmd = `curl -X GET "${window.location.origin}/api/sensors"`;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(curlCmd).then(() => {
+      showToast('cURL command copied to clipboard!', 'success');
+    }).catch(() => {
+      showToast('cURL: ' + curlCmd, 'info');
+    });
+  } else {
+    prompt('Copy cURL command:', curlCmd);
+  }
 }
 

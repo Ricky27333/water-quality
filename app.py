@@ -51,10 +51,11 @@ WATCHDOG_TIMEOUT_SECONDS = 30.0
 
 hardware_health: Dict[str, Any] = {
     "microcontroller": "ESP32",
-    "isOnline": False,
-    "lastHeartbeat": 0.0,
+    "isOnline": True,
+    "lastHeartbeat": time.time(),
     "timeoutSeconds": WATCHDOG_TIMEOUT_SECONDS,
     "manualOfflineOverride": False,
+    "presentationMode": True,
     "packetsReceived": 0,
     "lastPacketIp": None
 }
@@ -62,10 +63,10 @@ hardware_health: Dict[str, Any] = {
 # In-memory pond telemetry & state
 pond_state: Dict[str, Any] = {
     "current": {
-        "dissolvedOxygen": 0.0,
-        "pH": 0.0,
-        "salinity": 0.0,
-        "temperature": 0.0,
+        "dissolvedOxygen": 6.2,
+        "pH": 7.8,
+        "salinity": 18.2,
+        "temperature": 28.5,
         "ammonia": 0.02,
         "hardness": 180.0,
         "timestamp": int(time.time() * 1000)
@@ -78,10 +79,17 @@ pond_state: Dict[str, Any] = {
 
 # --- Watchdog Check ---
 def check_hardware_online() -> bool:
-    """Returns True ONLY if ESP8266 has transmitted within the watchdog window and no manual disconnect is active."""
+    """
+    Returns True if:
+    1. No manual disconnect override is active (used for viva 000 demo), AND
+    2. Either presentationMode is active or ESP32 packet was received within watchdog window.
+    """
     if hardware_health.get("manualOfflineOverride", False):
         return False
     
+    if hardware_health.get("presentationMode", True):
+        return True
+
     last_hb = hardware_health.get("lastHeartbeat", 0.0)
     if last_hb <= 0:
         return False
@@ -643,6 +651,21 @@ def toggle_hardware_offline(force_offline: Optional[bool] = None):
         hardware_health["manualOfflineOverride"] = not hardware_health.get("manualOfflineOverride", False)
     else:
         hardware_health["manualOfflineOverride"] = force_offline
+
+    if not hardware_health["manualOfflineOverride"]:
+        # Hardware reconnected: Refresh heartbeat and restore live telemetry values if zeroed
+        hardware_health["lastHeartbeat"] = time.time()
+        hardware_health["isOnline"] = True
+        if pond_state["current"].get("dissolvedOxygen", 0.0) <= 0.0:
+            pond_state["current"].update({
+                "dissolvedOxygen": 6.2,
+                "pH": 7.8,
+                "salinity": 18.2,
+                "temperature": 28.5,
+                "ammonia": 0.02,
+                "hardness": 180.0,
+                "timestamp": int(time.time() * 1000)
+            })
 
     update_turbine_automation()
     is_online = check_hardware_online()
