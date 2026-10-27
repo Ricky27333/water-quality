@@ -66,15 +66,20 @@ Servo servoDO;
 Servo servoHeat;
 
 // =====================================================
-// SERVO POSITIONS
-// Change these if your mechanical arrangement requires it
+// 360-DEGREE CONTINUOUS ROTATION MOTOR SETTINGS
+// 360° Continuous Rotation Servos & Turbine Motors:
+// - FULL FORWARD SPEED (360° continuous rotation): 180
+// - FULL STOP (neutral position): 90
 // =====================================================
 
-const int SERVO_DO_OFF = 0;
-const int SERVO_DO_ON  = 90;
+const int TURBINE_360_FULL_SPEED = 180; // 360° continuous rotation forward
+const int TURBINE_360_STOP       = 90;  // 360° motor stop
 
-const int SERVO_HEAT_OFF = 0;
-const int SERVO_HEAT_ON  = 90;
+const int SERVO_DO_OFF = TURBINE_360_STOP;
+const int SERVO_DO_ON  = TURBINE_360_FULL_SPEED;
+
+const int SERVO_HEAT_OFF = TURBINE_360_STOP;
+const int SERVO_HEAT_ON  = TURBINE_360_FULL_SPEED;
 
 // =====================================================
 // THRESHOLDS
@@ -172,8 +177,14 @@ void setup()
   temperatureSensor.setResolution(10); // 10-bit gives 0.25°C precision and reduces conversion time to only 187ms!
 
   // ---------------------------------------------------
-  // SERVO SETUP
+  // SERVO SETUP WITH INDEPENDENT HARDWARE PWM TIMERS
+  // (Prevents channel conflicts so each motor rotates completely separately!)
   // ---------------------------------------------------
+
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
 
   servoDO.setPeriodHertz(50);
   servoHeat.setPeriodHertz(50);
@@ -181,9 +192,9 @@ void setup()
   servoDO.attach(SERVO_DO_PIN, 500, 2400);
   servoHeat.attach(SERVO_HEAT_PIN, 500, 2400);
 
-  // Start servos OFF
-  servoDO.write(SERVO_DO_OFF);
-  servoHeat.write(SERVO_HEAT_OFF);
+  // Start with both motors completely stopped (90 for 360° continuous)
+  servoDO.write(TURBINE_360_STOP);
+  servoHeat.write(TURBINE_360_STOP);
 
   // ---------------------------------------------------
   // WIFI
@@ -228,65 +239,31 @@ unsigned long lastTelemetryMillis = 0;
 const unsigned long TELEMETRY_INTERVAL_MS = 800; // Ultra-fast 800ms telemetry cycle (sub-second remote motor response!)
 
 // =====================================================
-// CONTINUOUS TURBINE MOTOR ROTATION CONTROLLER
-// Rotates continuously while motor state is active (ON)
-// Parks at 0 degrees and stops immediately when OFF
+// CONTINUOUS 360-DEGREE TURBINE MOTOR ROTATION CONTROLLER
+// Rotates 360° continuously forward while motor state is active (ON)
+// Stops immediately (90) when turned OFF
 // =====================================================
-
-unsigned long lastTurbineMotionMillis = 0;
-int turbine1Angle = 0;
-int turbine1Direction = 15; // Sweep speed degrees per 30ms step
-int turbine2Angle = 0;
-int turbine2Direction = 15;
 
 void updateTurbineContinuousRotation()
 {
-  unsigned long now = millis();
-  if (now - lastTurbineMotionMillis >= 30) // Smooth 33 FPS continuous rotation loop
+  // --- TURBINE 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18) ---
+  if (servoDOState)
   {
-    lastTurbineMotionMillis = now;
+    servoDO.write(TURBINE_360_FULL_SPEED); // 180: Spins 360° continuously at full speed!
+  }
+  else
+  {
+    servoDO.write(TURBINE_360_STOP); // 90: Neutral pulse (1500us), stops motor completely!
+  }
 
-    // --- TURBINE 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18) ---
-    if (servoDOState)
-    {
-      turbine1Angle += turbine1Direction;
-      if (turbine1Angle >= 180)
-      {
-        turbine1Angle = 180;
-        turbine1Direction = -15;
-      }
-      else if (turbine1Angle <= 0)
-      {
-        turbine1Angle = 0;
-        turbine1Direction = 15;
-      }
-      servoDO.write(turbine1Angle); // Continuously churns/rotates back and forth like a pond paddle wheel!
-    }
-    else
-    {
-      servoDO.write(0); // Park at 0° when STOPPED
-    }
-
-    // --- TURBINE 2: Water Circulation Turbine (Servo 2 / GPIO 19) ---
-    if (servoHeatState)
-    {
-      turbine2Angle += turbine2Direction;
-      if (turbine2Angle >= 180)
-      {
-        turbine2Angle = 180;
-        turbine2Direction = -15;
-      }
-      else if (turbine2Angle <= 0)
-      {
-        turbine2Angle = 0;
-        turbine2Direction = 15;
-      }
-      servoHeat.write(turbine2Angle); // Continuously churns/rotates!
-    }
-    else
-    {
-      servoHeat.write(0); // Park at 0° when STOPPED
-    }
+  // --- TURBINE 2: Water Circulation Turbine (Servo 2 / GPIO 19) ---
+  if (servoHeatState)
+  {
+    servoHeat.write(TURBINE_360_FULL_SPEED); // 180: Spins 360° continuously at full speed!
+  }
+  else
+  {
+    servoHeat.write(TURBINE_360_STOP); // 90: Neutral pulse (1500us), stops motor completely!
   }
 }
 
@@ -471,9 +448,9 @@ void controlDOServo()
   {
     if (!servoDOState)
     {
-      servoDO.write(SERVO_DO_ON);
       servoDOState = true;
-      Serial.println("TURBINE 1 [Dissolved Oxygen] -> ON (Local Safety: Low DO)");
+      updateTurbineContinuousRotation();
+      Serial.println("TURBINE 1 [Dissolved Oxygen] -> ON (Local Safety: Low DO, 360 Spin)");
     }
   }
   // DO RECOVERED -> STANDBY
@@ -481,9 +458,9 @@ void controlDOServo()
   {
     if (servoDOState)
     {
-      servoDO.write(SERVO_DO_OFF);
       servoDOState = false;
-      Serial.println("TURBINE 1 [Dissolved Oxygen] -> OFF (Local Safety: DO Normal)");
+      updateTurbineContinuousRotation();
+      Serial.println("TURBINE 1 [Dissolved Oxygen] -> OFF (Local Safety: DO Normal, Stopped)");
     }
   }
 }
@@ -500,9 +477,9 @@ void controlTemperatureServo()
   {
     if (!servoHeatState)
     {
-      servoHeat.write(SERVO_HEAT_ON);
       servoHeatState = true;
-      Serial.println("TURBINE 2 [Water Circulation] -> ON (Local Safety: Heat/Water Stress)");
+      updateTurbineContinuousRotation();
+      Serial.println("TURBINE 2 [Water Circulation] -> ON (Local Safety: Heat/Water Stress, 360 Spin)");
     }
   }
   // PARAMETERS NORMALIZED -> STANDBY
@@ -510,9 +487,9 @@ void controlTemperatureServo()
   {
     if (servoHeatState)
     {
-      servoHeat.write(SERVO_HEAT_OFF);
       servoHeatState = false;
-      Serial.println("TURBINE 2 [Water Circulation] -> OFF (Local Safety: Water Normal)");
+      updateTurbineContinuousRotation();
+      Serial.println("TURBINE 2 [Water Circulation] -> OFF (Local Safety: Water Normal, Stopped)");
     }
   }
 }
@@ -687,8 +664,8 @@ bool sendDataToAPI()
     bool doActive = false;
     if (response.indexOf("\"oxygenTurbineActive\":true") >= 0 ||
         response.indexOf("\"oxygenTurbineActive\": true") >= 0 ||
-        response.indexOf("\"servoDO\":90") >= 0 ||
-        response.indexOf("\"servoDO\": 90") >= 0 ||
+        response.indexOf("\"servoDO\":180") >= 0 ||
+        response.indexOf("\"servoDO\": 180") >= 0 ||
         response.indexOf("\"oxygenTurbine\":\"ON\"") >= 0)
     {
       doActive = true;
@@ -697,39 +674,36 @@ bool sendDataToAPI()
     bool waterActive = false;
     if (response.indexOf("\"waterTurbineActive\":true") >= 0 ||
         response.indexOf("\"waterTurbineActive\": true") >= 0 ||
-        response.indexOf("\"servoWater\":90") >= 0 ||
-        response.indexOf("\"servoWater\": 90") >= 0 ||
+        response.indexOf("\"servoWater\":180") >= 0 ||
+        response.indexOf("\"servoWater\": 180") >= 0 ||
         response.indexOf("\"waterTurbine\":\"ON\"") >= 0)
     {
       waterActive = true;
     }
 
-    // Actuate Turbine 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18)
+    // Set discrete motor states independently
+    servoDOState = doActive;
+    servoHeatState = waterActive;
+
+    // Apply 360-degree continuous rotation immediately
+    updateTurbineContinuousRotation();
+
     if (doActive)
     {
-      servoDO.write(SERVO_DO_ON);
-      servoDOState = true;
-      Serial.println("--> TURBINE 1 [DO Turbine] -> ON (via Web API Action)");
+      Serial.println("--> TURBINE 1 [DO Turbine] -> ON (360 Deg Continuous Spin)");
     }
     else
     {
-      servoDO.write(SERVO_DO_OFF);
-      servoDOState = false;
-      Serial.println("--> TURBINE 1 [DO Turbine] -> OFF (via Web API Action)");
+      Serial.println("--> TURBINE 1 [DO Turbine] -> OFF (Stopped)");
     }
 
-    // Actuate Turbine 2: Water Circulation Turbine (Servo 2 / GPIO 19)
     if (waterActive)
     {
-      servoHeat.write(SERVO_HEAT_ON);
-      servoHeatState = true;
-      Serial.println("--> TURBINE 2 [Water Turbine] -> ON (via Web API Action)");
+      Serial.println("--> TURBINE 2 [Water Turbine] -> ON (360 Deg Continuous Spin)");
     }
     else
     {
-      servoHeat.write(SERVO_HEAT_OFF);
-      servoHeatState = false;
-      Serial.println("--> TURBINE 2 [Water Turbine] -> OFF (via Web API Action)");
+      Serial.println("--> TURBINE 2 [Water Turbine] -> OFF (Stopped)");
     }
 
     http.end();

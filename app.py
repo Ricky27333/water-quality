@@ -293,13 +293,13 @@ def ingest_esp8266_telemetry(
         # Turbine 1: Dissolved Oxygen Turbine (Servo 1 / GPIO 18)
         "oxygenTurbine": "ON" if do_active else "OFF",
         "oxygenTurbineActive": do_active,
-        "servoDO": 90 if do_active else 0,
+        "servoDO": 180 if do_active else 90,
         "relayLevelDO": 0 if do_active else 1,
         "modeDO": mode_do,
         # Turbine 2: Water Circulation Turbine (Servo 2 / GPIO 19)
         "waterTurbine": "ON" if water_active else "OFF",
         "waterTurbineActive": water_active,
-        "servoWater": 90 if water_active else 0,
+        "servoWater": 180 if water_active else 90,
         "relayLevelWater": 0 if water_active else 1,
         "modeWater": mode_water,
         # Backward-compatibility aliases
